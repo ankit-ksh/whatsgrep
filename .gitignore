@@ -1,0 +1,17 @@
+# your rules, WhatsApp session and ntfy topic: never commit these
+config.yaml
+.whatsgrep/
+# old session folder name, remove the next line once renamed
+.whatsify/
+.wwebjs_auth/
+.wwebjs_cache/
+.env
+.env.*
+
+node_modules/
+npm-debug.log*
+*.log
+
+.DS_Store
+.vscode/
+.idea/

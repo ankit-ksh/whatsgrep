@@ -1,0 +1,38 @@
+{
+  "name": "whatsgrep",
+  "version": "0.1.0",
+  "description": "Watch selected WhatsApp chats for keyword patterns and get a push notification via ntfy.",
+  "type": "module",
+  "bin": {
+    "whatsgrep": "src/cli.js"
+  },
+  "scripts": {
+    "start": "node src/cli.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "qrcode-terminal": "^0.12.0",
+    "whatsapp-web.js": "^1.26.0",
+    "yaml": "^2.5.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ankit-ksh/whatsgrep.git"
+  },
+  "homepage": "https://github.com/ankit-ksh/whatsgrep#readme",
+  "bugs": {
+    "url": "https://github.com/ankit-ksh/whatsgrep/issues"
+  },
+  "keywords": [
+    "whatsapp",
+    "ntfy",
+    "notifications",
+    "keyword",
+    "alerts",
+    "whatsapp-web.js"
+  ]
+}

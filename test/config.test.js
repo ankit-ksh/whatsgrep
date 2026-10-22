@@ -1,0 +1,33 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { parseConfig } from '../src/config.js';
+
+test('example config parses with its sections', () => {
+  const c = parseConfig(readFileSync(new URL('../config.example.yaml', import.meta.url), 'utf8'));
+  assert.equal(c.server, 'https://ntfy.sh');
+  assert.equal(c.repeatWindowMs, 6 * 3600e3);
+  assert.equal(c.rules.length, 3);
+});
+test('sections are optional (rules-only file)', () => {
+  const c = parseConfig('rules:\n  - name: r\n    all: [hi]\n');
+  assert.equal(c.rules.length, 1);
+  assert.equal(c.repeatWindowMs, 6 * 3600e3);
+});
+test('custom server and repeat window', () => {
+  const c = parseConfig('ntfy: { server: "http://x:8080" }\nsettings: { repeat_window_hours: 0 }\nrules: []\n');
+  assert.equal(c.server, 'http://x:8080');
+  assert.equal(c.repeatWindowMs, 0);
+});
+test('invalid config throws', () => {
+  assert.throws(() => parseConfig('settings: { repeat_window_hours: soon }\nrules: []'));
+  assert.throws(() => parseConfig('rules:\n  - all: [hi]'));
+});
+test('a rule must look for something', () => {
+  assert.throws(() => parseConfig('rules:\n  - name: r\n    from: all\n'), /needs something to look for/);
+  assert.throws(() => parseConfig('rules:\n  - name: r\n    message: { exclude: [spam] }\n'), /needs something/);
+});
+test('message is optional when from picks chats', () => {
+  assert.equal(parseConfig('rules:\n  - name: r\n    from: [Mess]\n').rules.length, 1);
+  assert.equal(parseConfig('rules:\n  - name: r\n    message: { all: [[sale]] }\n').rules.length, 1);
+});

@@ -1,0 +1,64 @@
+# whatsgrep config. Copy to config.yaml and edit:  cp config.example.yaml config.yaml
+# Saving the file reloads it automatically. A broken edit keeps the old rules.
+
+ntfy:
+  server: https://ntfy.sh      # your ntfy server
+
+settings:
+  repeat_window_hours: 6       # same sender + same text notifies once per this many hours (0 = off)
+
+rules:
+  # Items for sale in these chats. Ignores people asking to buy.
+  - name: items-for-sale
+    from:                                     # WHICH chats
+      any:                                    #   must be one of these
+        exact: ["Neighbourhood Market"]       #     name is exactly this
+        contains: ["classifieds"]             #     name includes this
+      exclude:                                #   and not one of these
+        contains: ["archive"]
+    message:                                  # WHAT the text says
+      any:                                    #   the topic: at least one of these
+        exact: [laptop, phone, bike]          #     whole words
+        contains: [notebook, mobile]          #     anywhere (notebooks, mobiles ...)
+        re: ["rs\\.?\\s*\\d+"]                #     regex, here a price like "Rs 5000"
+      all:                                    #   the intent: every line must hold
+        - [sell, selling, sale, "for sale"]   #     (one of these)
+      exclude:                                #   and none of these
+        exact: [buy, buying, wtb, need, wanted]
+        contains: ["looking for", "anyone selling"]
+    priority: high
+
+  # Giveaways, from every chat. A plain list means `any`.
+  - name: free-stuff
+    from: all
+    message: [giveaway, "giving away", "free pickup"]
+
+  # Everything said in this chat (no message section needed).
+  - name: announcements
+    from: ["Hostel Announcements"]
+    priority: low
+
+# ----------------------------------------------------------------------------
+# Quick reference. `from` (chats) and `message` (text) both take:
+#
+#   any       at least ONE of these matches
+#   all       EVERY entry matches (a [list] entry means "one of these")
+#   exclude   NONE of these match
+#
+# Each of any / exclude is a list, or grouped by kind:
+#   exact:     the exact chat name, or a whole word in the text
+#   contains:  part of a chat name, or anywhere in the text ("contains:bike" matches "motorbike")
+#   re:        a regex
+# All matching ignores upper/lower case.
+#
+# from      `from: all` (or everywhere / any / "*"), or no `from`, means every chat.
+#           Besides names you can use a phone number (919876543210) or a chat id
+#           (1203...@g.us). Use --dry-run --verbose to see each chat's name and id.
+# message   optional. A rule needs message.any/all or from.any/all.
+# priority  min | low | default | high | urgent
+#
+# Short forms: `message: [a, b]` = any;  `from: [name1, name2]` = any;
+# exact/contains/re written directly under from/message count as `any`;
+# a plain entry like "Mess" is exact; "contains:x" / "re:x" prefixes also work;
+# `none` is an older name for `exclude`.
+# ----------------------------------------------------------------------------
