@@ -75,6 +75,7 @@ function reloadRulesIfChanged() {
     rulesMtime = m;
     config = loadConfig();
     ({ rules } = config);
+    if (config.methods.join() !== methods.join()) console.warn('notifications changed in the config; restart whatsgrep to apply');
     console.log(`Reloaded ${opt.config} (${rules.length} rules)`);
   } catch (e) {
     console.warn(`Config reload failed, keeping previous rules: ${e.message}`);
@@ -89,15 +90,19 @@ if (opt.check !== undefined) {
 
 watchFile(opt.config, { interval: 500 }, reloadRulesIfChanged);
 
-const { topic, source } = resolveTopic(opt['data-dir'], opt.topic);
+// Methods are fixed at startup (ntfy needs its topic set up first); edits need a restart.
+const methods = config.methods;
+const useNtfy = methods.includes('ntfy');
+const { topic, source } = useNtfy ? resolveTopic(opt['data-dir'], opt.topic) : {};
 const dryRun = opt['dry-run'];
-console.log(`ntfy topic (${source}):\n  ${topic}\nSubscribe to it in the ntfy app/web: ${server}/${topic}\n`);
+console.log(`Notifications: ${methods.join(', ') || 'none'}`);
+if (useNtfy) console.log(`ntfy topic (${source}):\n  ${topic}\nSubscribe to it in the ntfy app/web: ${server}/${topic}\n`);
 
 const { default: wweb } = await import('whatsapp-web.js');
 const { default: qrcode } = await import('qrcode-terminal');
 
 // ntfy:// deep link opens the app and offers to subscribe (no typing the topic).
-if (opt.qr || source !== 'saved') {
+if (useNtfy && (opt.qr || source !== 'saved')) {
   const u = new URL(server);
   const deepLink = `ntfy://${u.host}/${topic}${u.protocol === 'http:' ? '?secure=false' : ''}`;
   console.log('Scan with your phone camera to subscribe in the ntfy app:');
@@ -180,7 +185,7 @@ client.on('message_create', async (msg) => {
       console.log(`[${rule.name}] ${chatName}: ${msg.body}`);
       if (dryRun) continue;
       try {
-        await notify({ server, topic, title: `${rule.name} · ${chatName || 'chat'}`, message: msg.body, priority: rule.priority });
+        await notify(methods, { rule: rule.name, server, topic, title: `${rule.name} · ${chatName || 'chat'}`, message: msg.body, priority: rule.priority });
       } catch (e) {
         console.error(`[${rule.name}] notification failed: ${e.message}`);
       }

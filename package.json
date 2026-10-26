@@ -1,7 +1,7 @@
 {
   "name": "whatsgrep",
   "version": "0.1.0",
-  "description": "Watch selected WhatsApp chats for keyword patterns and get a push notification via ntfy.",
+  "description": "Watch selected WhatsApp chats for keyword patterns and get desktop or ntfy push notifications.",
   "type": "module",
   "bin": {
     "whatsgrep": "src/cli.js"

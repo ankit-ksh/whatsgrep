@@ -3,7 +3,7 @@
 Watch selected WhatsApp chats for keyword patterns and get a push notification on your phone or desktop the moment one matches. No more refreshing busy buy/sell, jobs or deals groups.
 
 - Rules are plain YAML: which chats, which words must appear, which words rule a message out.
-- Notifications go through [ntfy](https://ntfy.sh), so they work on Android, iOS and desktop with no account.
+- Notifications go to your desktop (Linux, macOS, Windows) and/or through [ntfy](https://ntfy.sh) to your phone, with no account. Pick with `notifications` in the config.
 - Log in to WhatsApp once with a QR code. After that you start it when you want to track and stop it with Ctrl+C.
 - It only listens. It never sends WhatsApp messages and sends no phone numbers to ntfy.
 
@@ -12,7 +12,7 @@ Watch selected WhatsApp chats for keyword patterns and get a push notification o
 ## How it works
 
 ```
-WhatsApp Web (headless Chromium)  ->  your rules  ->  ntfy  ->  phone / desktop
+WhatsApp Web (headless Chromium)  ->  your rules  ->  desktop notification and/or ntfy -> phone
 ```
 
 ### What happens when you run it
@@ -36,7 +36,7 @@ For every new message, in order:
    - `message`: the text passes by the same three tests, on words.
    - A rule must have something to look for: `message.any` / `message.all`, or `from.any` / `from.all`. Otherwise it is rejected at load time, since it would fire on everything. `message` itself is optional.
 6. **Repeat filter:** if the same sender sent the same text for the same rule within `repeat_window_hours`, it is dropped silently. The window slides, so a sender who keeps repeating the message every few hours is never notified again until they stop for a full window. This also applies in `--dry-run`.
-7. **Notify:** the match is printed to the terminal as `[rule] chat: text`. Unless `--dry-run`, it is then sent to ntfy as title `rule · chat`, body the full message text, with the rule's priority. If ntfy is unreachable the error is logged and the remaining rules still run.
+7. **Notify:** the match is printed to the terminal as `[rule] chat: text`. Unless `--dry-run`, it is then sent to every method in `notifications` (desktop and/or ntfy) as title `rule · chat`, body the full message text, with the rule's priority. If a method fails the error is logged and the remaining rules still run.
 
 One message can fire several rules, and you get one notification per rule.
 
@@ -46,7 +46,7 @@ One message can fire several rules, and you get one notification per rule.
 |---|---|
 | Rules, `settings.repeat_window_hours` in `config.yaml` | On save, within about half a second |
 | An invalid saved config | Ignored with a warning, previous settings stay active |
-| `ntfy.server`, `--topic`, `--server`, `--dry-run`, `--verbose` | After restart |
+| `notifications`, `ntfy.server`, `--topic`, `--server`, `--dry-run`, `--verbose` | After restart |
 | Your WhatsApp login | Persisted; restart not needed to keep it |
 
 ## Requirements
@@ -110,6 +110,7 @@ After changing the topic, subscribe to the new one in the ntfy app and delete th
 
 | Section | Purpose |
 |---|---|
+| `notifications` | List of where alerts go: `desktop` (native notification on this computer: `notify-send` on Linux, `osascript` on macOS, a PowerShell toast on Windows) and/or `ntfy` (phone). Default `[ntfy]`. ntfy's topic, QR code and server are only set up if `ntfy` is listed. Needs a restart to change |
 | `ntfy` | `server`: the ntfy server to publish to (default `https://ntfy.sh`). The `--server` flag overrides it |
 | `settings` | `repeat_window_hours`: notify once per sender and text in this window (default `6`, `0` = off) |
 | `rules` | What to watch for. Everything below. The other two sections are optional |
@@ -276,7 +277,7 @@ src/cli.js       arguments, WhatsApp client, message handling, config reload
 src/config.js    config file parsing (sections, defaults, validation)
 src/matcher.js   rule compilation and matching (pure, unit tested)
 src/state.js     ntfy topic generation and persistence
-src/notify.js    ntfy publisher
+src/notify.js    desktop + ntfy senders
 test/            node:test unit tests
 ```
 

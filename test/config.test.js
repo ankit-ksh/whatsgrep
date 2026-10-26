@@ -31,3 +31,9 @@ test('message is optional when from picks chats', () => {
   assert.equal(parseConfig('rules:\n  - name: r\n    from: [Mess]\n').rules.length, 1);
   assert.equal(parseConfig('rules:\n  - name: r\n    message: { all: [[sale]] }\n').rules.length, 1);
 });
+test('notifications defaults to ntfy and validates names', () => {
+  assert.deepEqual(parseConfig('rules: []').methods, ['ntfy']);
+  assert.deepEqual(parseConfig('notifications: [desktop]\nrules: []').methods, ['desktop']);
+  assert.deepEqual(parseConfig('notifications: []\nrules: []').methods, []);
+  assert.throws(() => parseConfig('notifications: [sms]\nrules: []'), /notifications must be/);
+});

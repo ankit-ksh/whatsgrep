@@ -1,7 +1,10 @@
 # whatsgrep config. Copy to config.yaml and edit:  cp config.example.yaml config.yaml
 # Saving the file reloads it automatically. A broken edit keeps the old rules.
 
-ntfy:
+notifications: [desktop, ntfy]   # where alerts go: desktop (this computer), ntfy (phone). Any subset.
+                               # Needs a restart to change. desktop uses notify-send on Linux.
+
+ntfy:                          # only used when ntfy is listed above
   server: https://ntfy.sh      # your ntfy server
 
 settings:
