@@ -34,6 +34,6 @@ test('message is optional when from picks chats', () => {
 test('notifications defaults to ntfy and validates names', () => {
   assert.deepEqual(parseConfig('rules: []').methods, ['ntfy']);
   assert.deepEqual(parseConfig('notifications: [desktop]\nrules: []').methods, ['desktop']);
-  assert.deepEqual(parseConfig('notifications: []\nrules: []').methods, []);
+  assert.throws(() => parseConfig('notifications: []\nrules: []'), /at least one/);
   assert.throws(() => parseConfig('notifications: [sms]\nrules: []'), /notifications must be/);
 });

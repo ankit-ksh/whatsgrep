@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 // The running tracker records its state here so `status` (from any terminal or the shell) can show it.
@@ -56,3 +56,34 @@ export function writeChats(dataDir, chats) {
 export function readChats(dataDir) {
   try { return JSON.parse(readFileSync(chatsFile(dataDir), 'utf8')); } catch { return { at: 0, chats: [] }; }
 }
+
+// History of every match (one JSON object per line), newest last on disk, newest first when read.
+const MAX_KEPT = 3000;
+const matchesFile = (dataDir) => join(dataDir, 'matches.jsonl');
+export function appendMatch(dataDir, rec) {
+  try { mkdirSync(dataDir, { recursive: true }); appendFileSync(matchesFile(dataDir), JSON.stringify(rec) + '\n', { mode: 0o600 }); } catch {}
+}
+// Called when the tracker starts, so the file cannot grow forever.
+export function trimMatches(dataDir, keep = MAX_KEPT) {
+  try {
+    const lines = readFileSync(matchesFile(dataDir), 'utf8').split('\n').filter(Boolean);
+    if (lines.length > keep) writeFileSync(matchesFile(dataDir), lines.slice(-keep).join('\n') + '\n', { mode: 0o600 });
+  } catch {}
+}
+let cache = { file: '', mtime: 0, rows: [] };
+export function readMatches(dataDir, limit = Infinity) {
+  const file = matchesFile(dataDir);
+  try {
+    const m = statSync(file).mtimeMs;
+    if (cache.file !== file || cache.mtime !== m) {
+      const rows = [];
+      for (const line of readFileSync(file, 'utf8').split('\n')) {
+        if (!line) continue;
+        try { rows.push(JSON.parse(line)); } catch {}
+      }
+      cache = { file, mtime: m, rows: rows.reverse() };
+    }
+    return cache.rows.slice(0, limit);
+  } catch { return []; }
+}
+export const clearMatches = (dataDir) => { rmSync(matchesFile(dataDir), { force: true }); cache = { file: '', mtime: 0, rows: [] }; };

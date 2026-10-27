@@ -10,7 +10,7 @@ import { findBrowser } from './browser.js';
 import { defaultPaths, legacyFiles } from './paths.js';
 import { COMMANDS_HELP, runCommand } from './commands.js';
 import { runShell } from './shell.js';
-import { clearAccount, readStatus, sendCommand, takeCommand, writeAccount, writeChats, writeStatus } from './status.js';
+import { appendMatch, clearAccount, readStatus, sendCommand, takeCommand, trimMatches, writeAccount, writeChats, writeStatus } from './status.js';
 import { startServer } from './server.js';
 import { openBrowser } from './open.js';
 import { isPackaged } from './sea.js';
@@ -132,6 +132,8 @@ function reloadRulesIfChanged() {
 }
 
 watchFile(opt.config, { interval: 500 }, reloadRulesIfChanged);
+
+trimMatches(opt['data-dir']);
 
 // One tracker per data folder: two would fight over the same WhatsApp session.
 const running = readStatus(opt['data-dir']);
@@ -315,12 +317,17 @@ client.on('message_create', async (msg) => {
       stats.lastMatch = Date.now();
       stats.recent = [{ t: stats.lastMatch, rule: rule.name, chat: chatName || 'chat', text: msg.body.slice(0, 140) }, ...stats.recent].slice(0, 8);
       publish();
-      if (dryRun) continue;
+      const rec = { t: stats.lastMatch, rule: rule.name, chat: chatName || 'chat', text: msg.body.slice(0, 2000), priority: rule.priority ?? 'default', sent: [], failed: [] };
+      if (dryRun) { rec.dry = true; appendMatch(opt['data-dir'], rec); continue; }
       try {
-        await notify(methods, { rule: rule.name, server, topic, title: `${rule.name} · ${chatName || 'chat'}`, message: msg.body, priority: rule.priority });
+        for (const r of await notify(methods, { rule: rule.name, server, topic, title: `${rule.name} · ${chatName || 'chat'}`, message: msg.body, priority: rule.priority })) {
+          if (r.ok) rec.sent.push(r.method); else rec.failed.push({ method: r.method, error: r.error });
+        }
       } catch (e) {
         console.error(`[${rule.name}] notification failed: ${e.message}`);
+        rec.failed.push({ method: 'all', error: e.message });
       }
+      appendMatch(opt['data-dir'], rec);
     }
   } catch (e) {
     console.error('message handling failed:', e.message);

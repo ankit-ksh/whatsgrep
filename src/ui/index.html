@@ -243,6 +243,37 @@
   dialog p { margin: 0 0 18px; color: var(--muted); }
   dialog .row-actions { justify-content: flex-end; }
   .secret { filter: blur(6px); user-select: none; }
+  .switch.locked { opacity: .55; }
+  .switch.locked input { cursor: not-allowed; }
+  .bell { position: relative; }
+  .bellcount { position: absolute; top: -3px; right: -3px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 99px; background: var(--danger); color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center; line-height: 1; }
+  .bellpop { position: fixed; top: 62px; right: 24px; z-index: 50; width: min(380px, 94vw); background: var(--surface); border: 1px solid var(--line-strong); border-radius: 12px; box-shadow: var(--shadow-lg); overflow: hidden; }
+  .bellpop .ph { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+  .bellpop .new { background: var(--accent-soft); }
+  .ovgrid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; align-items: start; }
+  .ovgrid > div:last-child { position: sticky; top: 90px; }
+  .rmatch { padding: 11px 16px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 4px; }
+  .rmatch .top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+  .rmatch .top b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rmatch .when { color: var(--faint); font-size: 12px; flex: none; }
+  .rmatch .txt { color: var(--muted); font-size: 13px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+  .rfoot { padding: 10px 14px; border-top: 1px solid var(--line); display: flex; justify-content: center; }
+  .badge.ok { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+  .badge.bad { background: var(--danger-soft); color: var(--danger); border-color: transparent; }
+  .filters { display: flex; gap: 10px; flex-wrap: wrap; padding: 16px; }
+  .filters .search { flex: 2; min-width: 220px; max-width: none; }
+  .filters select { flex: 1; min-width: 130px; width: auto; }
+  .tablewrap { overflow-x: auto; border-top: 1px solid var(--line); }
+  .htable { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  .htable th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600; padding: 9px 16px; background: var(--surface-2); border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .htable th.sortable { cursor: pointer; user-select: none; }
+  .htable td { padding: 10px 16px; vertical-align: top; border-bottom: 1px solid var(--line); }
+  .htable tr.hrow { cursor: pointer; }
+  .htable tr.hrow:hover td, .htable tr.hrow.open td { background: var(--surface-2); }
+  .htable .nowrap { white-space: nowrap; }
+  .htable .msgcell { max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+  .htable tr.detail td { background: var(--surface-2); }
+  .fulltext { white-space: pre-wrap; overflow-wrap: anywhere; margin-bottom: 6px; }
   dialog.picker { width: min(620px, 94vw); }
   .pickrows { max-height: 52vh; overflow: auto; border: 1px solid var(--line); border-radius: 10px; margin-top: 8px; }
   .pickrow { display: flex; gap: 10px; align-items: center; padding: 9px 12px; }
@@ -260,7 +291,7 @@
   .alert b { display: block; }
   .alert span { color: var(--text); font-size: 13.5px; }
 
-  @media (max-width: 1000px) { .editor { grid-template-columns: 1fr; } .side { position: static; } }
+  @media (max-width: 1000px) { .editor { grid-template-columns: 1fr; } .side { position: static; } .ovgrid { grid-template-columns: 1fr; } .ovgrid > div:last-child { position: static; } }
   @media (max-width: 860px) {
     :root { --sidebar: 0px; }
     .app { grid-template-columns: 1fr; }
@@ -277,6 +308,7 @@
     .topbar .titles { flex: 1 1 100%; }
     .topbar .tools { flex-wrap: wrap; }
     .toasts { top: 12px; right: 12px; }
+    .bellpop { top: 8px; right: 8px; }
     .facts { grid-template-columns: 1fr; gap: 0; } .facts dd { margin-bottom: 6px; }
   }
 </style>
@@ -292,11 +324,12 @@
   <div class="main">
     <header class="topbar">
       <div class="titles"><h1 id="title"></h1><div class="sub" id="subtitle"></div></div>
-      <div class="tools" id="tools"></div>
+      <div class="tools"><button class="btn ghost icon bell" id="bell" title="Notifications" aria-haspopup="true"></button><span class="tools" id="tools"></span></div>
     </header>
     <div class="content" id="content"></div>
   </div>
 </div>
+<div class="bellpop" id="bellpop" hidden></div>
 <div class="savebar" id="savebar" hidden></div>
 <div class="toasts" id="toasts" aria-live="polite"></div>
 <script>
@@ -346,6 +379,7 @@ const ICONS = {
   search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
   moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
+  send: '<path d="m22 2-7 20-4-9-9-4zM22 2 11 13"/>',
   mark: '<path d="M4 20l1.4-4.2A8 8 0 1 1 8.4 18.7z"/><path d="M9 10h6M9 13h4"/>',
   alert: '<path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>',
 };
@@ -400,12 +434,13 @@ let ntfyInfo = null;     // { server, topic, store } from /api/ntfy
 
 const TABS = [
   ['overview', 'Overview', 'home', 'Is it running, and what has it caught'],
+  ['notifications', 'Notifications', 'bell', 'Every message that triggered an alert'],
   ['rules', 'Rules', 'rules', 'What to watch for in your chats'],
-  ['notifications', 'Notifications', 'bell', 'Where alerts are delivered'],
+  ['delivery', 'Delivery', 'send', 'Where alerts are sent: this computer, your phone'],
   ['settings', 'Settings', 'sliders', 'Start-up, browser and repeat handling'],
   ['advanced', 'Advanced', 'code', 'Config file and log'],
 ];
-const TAB_KEYS = { notifications: ['notifications', 'ntfyServer', 'ntfyTopic'], settings: ['repeatWindowHours', 'browser', 'runAtLogin'] };
+const TAB_KEYS = { delivery: ['notifications', 'ntfyServer', 'ntfyTopic'], settings: ['repeatWindowHours', 'browser', 'runAtLogin'] };
 const PRIORITIES = [['min', 'Silent'], ['low', 'Low'], ['default', 'Normal'], ['high', 'High'], ['urgent', 'Urgent']];
 
 async function refresh() { S = await api('GET', '/api/state'); }
@@ -515,6 +550,7 @@ function renderChrome() {
   else ctl.push(h('button', { class: 'btn', onclick: guard(() => control('restart')) }, icon('refresh', 15), 'Restart'),
     h('button', { class: 'btn', onclick: guard(() => control('stop')) }, icon('stop', 15), 'Stop'));
   tools.replaceChildren(h('span', { class: 'pill ' + t.cls }, t.spin ? spinner() : h('span', { class: 'd' }), t.label), ...ctl);
+  renderBell();
   document.getElementById('foot').textContent = S.platform === 'win32' ? 'Windows' : S.platform === 'darwin' ? 'macOS' : 'Linux';
   renderSaveBar();
 }
@@ -539,7 +575,7 @@ async function savePending() {
   const needsRestart = wasRunning && (configKeys.some((k) => k !== 'repeatWindowHours') || 'ntfyTopic' in pending);
   const wantLogin = 'runAtLogin' in pending ? pending.runAtLogin : null;
   try {
-    if (val('notifications')?.includes('ntfy') && !String(val('ntfyTopic') ?? '').trim()) throw new Error('Phone alerts need a topic. Generate one under Notifications first.');
+    if (val('notifications')?.includes('ntfy') && !String(val('ntfyTopic') ?? '').trim()) throw new Error('Phone alerts need a topic. Generate one under Delivery first.');
     if ('ntfyTopic' in pending) await api('PUT', '/api/ntfy/topic', { topic: String(pending.ntfyTopic).trim() });
     if (configKeys.length) S = await api('PUT', '/api/config', Object.fromEntries(configKeys.map((k) => [k, pending[k]])));
     if (wantLogin !== null) {
@@ -562,6 +598,56 @@ async function go(next) {
   editor = null; tab = next;
   renderChrome(); renderPage();
 }
+
+// ---- notification history helpers (overview, bell, notifications page) -------
+const METHOD_LABEL = { desktop: 'Desktop', ntfy: 'Phone' };
+function matchItem(m) {
+  return h('div', { class: 'rmatch' },
+    h('div', { class: 'top' }, h('b', null, m.chat), h('span', { class: 'when' }, ago(m.t))),
+    h('div', null, h('span', { class: 'badge' }, m.rule)),
+    h('div', { class: 'txt' }, m.text));
+}
+function deliveryBadges(m) {
+  const out = [];
+  if (m.dry) out.push(h('span', { class: 'badge' }, 'Dry run'));
+  (m.sent ?? []).forEach((x) => out.push(h('span', { class: 'badge ok' }, METHOD_LABEL[x] ?? x)));
+  (m.failed ?? []).forEach((f) => out.push(h('span', { class: 'badge bad', title: f.error }, (METHOD_LABEL[f.method] ?? f.method) + ' failed')));
+  if (!out.length) out.push(h('span', { class: 'badge' }, 'Logged only'));
+  return out;
+}
+let seenAt = Date.now();
+try { const v = Number(localStorage.getItem('wg-seen')); if (v) seenAt = v; else localStorage.setItem('wg-seen', String(seenAt)); } catch {}
+function markSeen() {
+  seenAt = Date.now();
+  try { localStorage.setItem('wg-seen', String(seenAt)); } catch {}
+  renderBell();
+}
+const unreadCount = () => (S?.recentMatches ?? []).filter((m) => !m.dry && m.t > seenAt).length;
+
+let bellOpen = false;
+function renderBell() {
+  const btn = document.getElementById('bell');
+  if (!btn || !S) return;
+  const n = unreadCount();
+  btn.querySelector('.bellcount')?.remove();
+  if (n) btn.append(h('span', { class: 'bellcount' }, n >= 20 ? '20+' : String(n)));
+  btn.setAttribute('aria-label', n ? `${n} new notifications` : 'Notifications');
+  const pop = document.getElementById('bellpop');
+  pop.hidden = !bellOpen;
+  if (!bellOpen) return;
+  const items = (S.recentMatches ?? []).filter((m) => !m.dry).slice(0, 6);
+  pop.replaceChildren(
+    h('div', { class: 'ph' }, h('b', null, 'Notifications'), h('button', { class: 'btn ghost sm', onclick: markSeen }, 'Mark all read')),
+    items.length ? h('div', null, items.map((m) => h('div', { class: m.t > seenAt ? 'new' : '' }, matchItem(m)))) : h('div', { class: 'empty', style: 'padding:24px' }, 'No notifications yet.'),
+    h('div', { class: 'rfoot' }, h('button', { class: 'btn sm', onclick: () => { bellOpen = false; markSeen(); go('notifications'); } }, 'View all notifications')));
+}
+function toggleBell(e) {
+  e?.stopPropagation();
+  bellOpen = !bellOpen;
+  renderBell();
+}
+document.addEventListener('click', (e) => { if (bellOpen && !e.target.closest('#bellpop, #bell')) { bellOpen = false; renderBell(); } });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && bellOpen) { bellOpen = false; renderBell(); } });
 
 // ============================================================================
 // WhatsApp account: who is linked, check, log out, log in (QR popup)
@@ -680,6 +766,7 @@ async function loginDialog() {
 async function pageOverview(root) {
   const s = S.status;
   const t = tracker();
+  const left = h('div'), right = h('div');
   if (!S.configExists) {
     root.append(h('div', { class: 'card' }, h('div', { class: 'empty' },
       h('b', null, 'Welcome to whatsgrep'), 'It watches your WhatsApp chats and notifies you when a message matches your rules.',
@@ -687,36 +774,37 @@ async function pageOverview(root) {
         h('button', { class: 'btn primary', onclick: guard(async () => { S = await api('POST', '/api/config/init'); renderChrome(); renderPage(); }) }, 'Create my config')))));
     return;
   }
-  if (S.configError) root.append(h('div', { class: 'alert bad' }, icon('alert'), h('div', null, h('b', null, 'The config file has a problem'), h('span', null, S.configError + ' Fix it in Advanced.'))));
-  if (!S.browserFound) root.append(h('div', { class: 'alert' }, icon('alert'), h('div', null, h('b', null, 'No browser found'), h('span', null, 'whatsgrep needs Chrome, Chromium, Edge or Brave installed. You can also set a path in Settings.'))));
+  if (S.configError) left.append(h('div', { class: 'alert bad' }, icon('alert'), h('div', null, h('b', null, 'The config file has a problem'), h('span', null, S.configError + ' Fix it in Advanced.'))));
+  if (!S.browserFound) left.append(h('div', { class: 'alert' }, icon('alert'), h('div', null, h('b', null, 'No browser found'), h('span', null, 'whatsgrep needs Chrome, Chromium, Edge or Brave installed. You can also set a path in Settings.'))));
 
-  root.append(whatsappCard());
+  left.append(whatsappCard());
 
   const stat = (label, value, small) => h('div', { class: 'stat' }, h('span', null, label), h('b', null, value), small && h('small', null, small));
-  root.append(h('div', { class: 'stats' },
+  left.append(h('div', { class: 'stats' },
     stat('Status', t.label, s?.running ? `pid ${s.pid}` : 'tracker process'),
     stat('Matches this run', String(s?.matches ?? 0), s?.lastMatch ? 'last ' + ago(s.lastMatch) : 'none yet'),
     stat('Rules', String(S.rules.length), 'watching your chats'),
-    stat('Sending to', (S.config?.notifications ?? []).map((m) => (m === 'ntfy' ? 'Phone' : 'Desktop')).join(' + ') || 'nowhere', 'see Notifications')));
+    stat('Sending to', (S.config?.notifications ?? []).map((m) => (m === 'ntfy' ? 'Phone' : 'Desktop')).join(' + ') || 'nowhere', 'see Delivery')));
 
   const steps = [
     [waInfo().kind === 'linked', 'Link WhatsApp', 'Use “Log in” in the WhatsApp card above', null],
     [S.rules.length > 0, 'Add a rule', 'Say what you want to hear about', 'rules'],
-    [(S.config?.notifications ?? []).length > 0, 'Choose where alerts go', 'Desktop, phone, or both', 'notifications'],
+    [(S.config?.notifications ?? []).length > 0, 'Choose where alerts go', 'Desktop, phone, or both', 'delivery'],
     [S.runAtLogin, 'Start with your computer', 'So it is always on', 'settings'],
   ];
   if (steps.some((x) => !x[0])) {
-    root.append(h('div', { class: 'card' }, h('div', { class: 'head', style: 'padding-bottom:12px' }, h('h2', null, 'Getting started'), h('p', { class: 'desc' }, `${steps.filter((x) => x[0]).length} of ${steps.length} done`)),
+    left.append(h('div', { class: 'card' }, h('div', { class: 'head', style: 'padding-bottom:12px' }, h('h2', null, 'Getting started'), h('p', { class: 'desc' }, `${steps.filter((x) => x[0]).length} of ${steps.length} done`)),
       h('ul', { class: 'steps' }, steps.map(([done, title, sub, to]) => h('li', { class: done ? 'done' : '' },
         h('span', { class: 'tick' }, done ? icon('check') : null), h('div', { class: 't' }, h('div', null, title), !done && h('div', { class: 'hint' }, sub)),
         !done && to && h('button', { class: 'btn sm', onclick: () => go(to) }, 'Open'))))));
   }
 
-  const recent = s?.recent ?? [];
-  root.append(h('div', { class: 'card' }, h('div', { class: 'head', style: 'padding-bottom:12px' }, h('h2', null, 'Recent matches'), h('p', { class: 'desc' }, 'Messages that triggered a notification during this run')),
+  const recent = (S.recentMatches ?? []).filter((m) => !m.dry).slice(0, 8);
+  right.append(h('div', { class: 'card' }, h('div', { class: 'head', style: 'padding-bottom:12px' }, h('h2', null, 'Recent matches'), h('p', { class: 'desc' }, 'Latest messages that triggered an alert')),
     recent.length
-      ? h('div', null, recent.map((m) => h('div', { class: 'match' }, h('span', { class: 'when' }, ago(m.t)), h('span', { class: 'who' }, m.chat), h('span', { class: 'badge' }, m.rule), h('span', { class: 'txt' }, m.text))))
+      ? h('div', null, recent.map((m) => matchItem(m)), h('div', { class: 'rfoot' }, h('button', { class: 'btn sm', onclick: () => go('notifications') }, 'View all notifications')))
       : h('div', { class: 'empty', style: 'padding:26px;border-top:1px solid var(--line)' }, 'Nothing yet. Matches show up here as they happen.')));
+  root.append(h('div', { class: 'ovgrid' }, left, right));
 }
 
 // ============================================================================
@@ -980,21 +1068,22 @@ function pageEditor(root) {
         h('div', { class: 'seg', role: 'radiogroup' }, PRIORITIES.map(([v, l]) => h('label', null, h('input', { type: 'radio', name: 'prio', checked: d.priority === v, onchange: () => { d.priority = v; touch(); } }), h('span', null, l)))))));
 
   const mode = E.ui.chatMode;
-  const setMode = (next) => guard(async () => {
+  // Each choice keeps its own list while you edit, so switching never loses anything.
+  // Only the selected choice is saved with the rule.
+  const setMode = (next) => () => {
     if (next === mode) return;
-    const losing = (next !== 'only' && (d.from.any.length || d.from.all.length)) || (next !== 'except' && mode === 'except' && d.from.exclude.length);
-    if (losing && !(await ask({ title: 'Change which chats?', body: 'This clears the chats you listed for the current choice.', ok: 'Change', danger: true }))) { rerender(); return; }
-    if (next !== 'only') { d.from.any = []; d.from.all = []; }
-    if (mode === 'except' && next !== 'except') d.from.exclude = [];
+    E.ui.stash = E.ui.stash ?? {};
+    E.ui.stash[mode] = clone(d.from);
+    d.from = E.ui.stash[next] ? clone(E.ui.stash[next]) : emptySection();
     E.ui.chatMode = next;
     touch(); rerender();
-  });
+  };
   const MODES = [['all', 'All chats'], ['only', 'Only these chats'], ['except', 'All except these chats']];
   const chatCard = h('div', { class: 'card' }, step(2, 'Where to listen', 'Which groups or contacts this rule applies to'),
     h('div', { class: 'body' },
       h('div', { class: 'seg', role: 'radiogroup', 'aria-label': 'Which chats' },
         ...MODES.map(([v, label]) => h('label', null, h('input', { type: 'radio', name: 'chatmode', checked: mode === v, onchange: setMode(v) }), h('span', null, label)))),
-      mode === 'all' && h('div', { class: 'hint', style: 'margin:0' }, 'The rule listens to every chat and group.'),
+      mode === 'all' && h('div', { class: 'hint', style: 'margin:0' }, 'The rule listens to every chat and group. Lists you built under the other choices are kept until you leave this page, but are not saved.'),
       mode === 'only' && h('div', null, fieldLabel('Chats to listen to', 'a name, a phone number, or part of a name'),
         chipInput(d.from.any, { isChat: true, placeholder: 'e.g. Mess Coupons, 919876543210', onChange: touch }),
         h('div', { style: 'margin-top:8px' }, h('button', { class: 'btn sm', onclick: guard(() => chatPicker(d.from.any, () => { touch(); rerender(); })) }, icon('search', 14), 'Pick from my chats'))),
@@ -1049,7 +1138,7 @@ function updateEditorBar() {
 // ============================================================================
 // page: notifications
 // ============================================================================
-const sw = (checked, onchange, label) => h('label', { class: 'switch' }, h('input', { type: 'checkbox', checked, onchange, 'aria-label': label }), h('span'));
+const sw = (checked, onchange, label, locked) => h('label', { class: 'switch' + (locked ? ' locked' : ''), title: locked ? 'At least one notification type must stay on' : '' }, h('input', { type: 'checkbox', checked, disabled: !!locked, onchange, 'aria-label': label }), h('span'));
 const needConfig = () => h('div', { class: 'card' }, h('div', { class: 'empty' }, h('b', null, 'No config yet'), h('button', { class: 'btn primary', style: 'margin-top:12px', onclick: () => go('overview') }, 'Set one up')));
 
 async function pageNotifications(root) {
@@ -1062,6 +1151,7 @@ async function pageNotifications(root) {
   const toggle = (m) => (e) => {
     const set = new Set(val('notifications'));
     e.target.checked ? set.add(m) : set.delete(m);
+    if (!set.size) { e.target.checked = true; toast('At least one notification type must stay on.', { err: true }); return; }
     stage('notifications', ['desktop', 'ntfy'].filter((x) => set.has(x)));
     renderPage();
   };
@@ -1073,9 +1163,9 @@ async function pageNotifications(root) {
 
   root.append(h('div', { class: 'card' },
     h('div', { class: 'setting' + ('notifications' in pending ? ' changed' : '') }, h('div', { class: 'what' }, h('b', null, 'Desktop notifications'), h('div', { class: 'hint' }, 'A pop-up on this computer. Works while you are logged in.')),
-      h('div', { class: 'ctl' }, testBtn('desktop', on('desktop') && !('notifications' in pending), on('desktop') ? 'Save your changes first' : 'Turn desktop notifications on first', async () => { await api('POST', '/api/notify/test', { method: 'desktop' }); toast('Sent. Did a notification appear?'); }), sw(on('desktop'), toggle('desktop'), 'Desktop notifications'))),
+      h('div', { class: 'ctl' }, testBtn('desktop', on('desktop') && !('notifications' in pending), on('desktop') ? 'Save your changes first' : 'Turn desktop notifications on first', async () => { await api('POST', '/api/notify/test', { method: 'desktop' }); toast('Sent. Did a notification appear?'); }), sw(on('desktop'), toggle('desktop'), 'Desktop notifications', on('desktop') && methods.length === 1))),
     h('div', { class: 'setting' + ('notifications' in pending ? ' changed' : '') }, h('div', { class: 'what' }, h('b', null, 'Phone (ntfy)'), h('div', { class: 'hint' }, 'Free push alerts through the ntfy app on Android or iPhone. Needs a private topic, set up below.')),
-      h('div', { class: 'ctl' }, testBtn('ntfy', phoneOk, phoneWhy, async () => { await api('POST', '/api/notify/test', { method: 'ntfy' }); toast('Sent to your ntfy topic'); }), sw(on('ntfy'), toggle('ntfy'), 'Phone notifications')))));
+      h('div', { class: 'ctl' }, testBtn('ntfy', phoneOk, phoneWhy, async () => { await api('POST', '/api/notify/test', { method: 'ntfy' }); toast('Sent to your ntfy topic'); }), sw(on('ntfy'), toggle('ntfy'), 'Phone notifications', on('ntfy') && methods.length === 1)))));
 
   const card = h('div', { class: 'card' }, h('div', { class: 'head', style: 'padding-bottom:14px' }, h('h2', null, 'Phone setup'),
     h('p', { class: 'desc' }, on('ntfy') ? 'Alerts are published to one topic. Subscribe to it once in the ntfy app.' : 'Turn on Phone (ntfy) above to set this up.')));
@@ -1115,6 +1205,107 @@ async function pageNotifications(root) {
   card.append(h('div', { class: 'setting' + ('ntfyServer' in pending ? ' changed' : ''), style: 'border-top:1px solid var(--line)' }, h('div', { class: 'what' }, h('b', null, 'ntfy server'), h('div', { class: 'hint' }, 'Leave as is unless you host your own.')),
     h('div', { class: 'ctl' }, h('input', { type: 'text', value: server, 'aria-label': 'ntfy server', oninput: (e) => stage('ntfyServer', e.target.value), onchange: () => renderPage() }))));
   root.append(card);
+}
+
+// ============================================================================
+// page: notifications (history table)
+// ============================================================================
+const hist = { items: [], q: '', rule: '', chat: '', range: 'all', delivery: 'all', sort: 'desc', page: 0, open: null, redraw: null };
+const RANGES = [['all', 'Any time'], ['hour', 'Last hour'], ['day', 'Last 24 hours'], ['week', 'Last 7 days']];
+const RANGE_MS = { hour: 3600e3, day: 86400e3, week: 7 * 86400e3 };
+const PAGE = 25;
+const fmtTime = (t) => new Date(t).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+
+function histFiltered() {
+  const q = hist.q.trim().toLowerCase();
+  const now = Date.now();
+  const rows = hist.items.filter((m) => {
+    if (hist.rule && m.rule !== hist.rule) return false;
+    if (hist.chat && m.chat !== hist.chat) return false;
+    if (hist.range !== 'all' && now - m.t > RANGE_MS[hist.range]) return false;
+    if (hist.delivery === 'ok' && !(m.sent?.length && !m.failed?.length)) return false;
+    if (hist.delivery === 'failed' && !m.failed?.length) return false;
+    if (hist.delivery === 'dry' && !m.dry) return false;
+    if (q && !`${m.chat} ${m.rule} ${m.text}`.toLowerCase().includes(q)) return false;
+    return true;
+  });
+  return hist.sort === 'desc' ? rows : rows.slice().reverse();
+}
+
+function exportCsv(rows) {
+  const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const csv = ['time,chat,rule,priority,delivered,failed,message', ...rows.map((m) => [new Date(m.t).toISOString(), m.chat, m.rule, m.priority, (m.sent ?? []).join('+'), (m.failed ?? []).map((f) => f.method).join('+'), m.text].map(esc).join(','))].join('\n');
+  const a = h('a', { href: URL.createObjectURL(new Blob([csv], { type: 'text/csv' })), download: 'whatsgrep-notifications.csv' });
+  document.body.append(a); a.click(); a.remove();
+}
+
+async function pageHistory(root) {
+  hist.items = (await api('GET', '/api/notifications')).items;
+  markSeen();
+  const uniq = (k) => [...new Set(hist.items.map((m) => m[k]))].sort((a, b) => String(a).localeCompare(String(b)));
+  const sel = (label, key, opts) => h('select', { 'aria-label': label, onchange: (e) => { hist[key] = e.target.value; hist.page = 0; draw(); } },
+    opts.map(([v, l]) => h('option', { value: v, selected: hist[key] === v }, l)));
+  const info = h('span', { class: 'muted' });
+  const tableBox = h('div');
+  const pager = h('div', { class: 'row-actions', style: 'justify-content:space-between;padding:12px 16px;border-top:1px solid var(--line)' });
+
+  const search = h('input', { type: 'text', placeholder: 'Search chat, rule or message', 'aria-label': 'Search notifications', value: hist.q, oninput: (e) => { hist.q = e.target.value; hist.page = 0; draw(); } });
+  root.append(h('div', { class: 'card' },
+    h('div', { class: 'filters' },
+      h('div', { class: 'search' }, icon('search'), search),
+      sel('Rule', 'rule', [['', 'All rules'], ...uniq('rule').map((x) => [x, x])]),
+      sel('Chat', 'chat', [['', 'All chats'], ...uniq('chat').map((x) => [x, x])]),
+      sel('Time range', 'range', RANGES),
+      sel('Delivery', 'delivery', [['all', 'Any delivery'], ['ok', 'Delivered'], ['failed', 'Failed'], ['dry', 'Dry run']])),
+    h('div', { class: 'row-actions', style: 'justify-content:space-between;padding:0 16px 12px' }, info,
+      h('div', { class: 'row-actions' },
+        h('button', { class: 'btn sm', onclick: () => exportCsv(histFiltered()) }, 'Export CSV'),
+        h('button', { class: 'btn sm danger', disabled: !hist.items.length, onclick: guard(async () => {
+          if (!(await ask({ title: 'Clear notification history?', body: 'This deletes the saved list of past matches. It does not affect your rules.', ok: 'Clear history', danger: true }))) return;
+          await api('POST', '/api/notifications/clear'); toast('History cleared'); await refresh(); renderChrome(); renderPage();
+        }) }, 'Clear history'))),
+    tableBox, pager));
+
+  function draw() {
+    const rows = histFiltered();
+    const pages = Math.max(1, Math.ceil(rows.length / PAGE));
+    if (hist.page >= pages) hist.page = pages - 1;
+    const slice = rows.slice(hist.page * PAGE, hist.page * PAGE + PAGE);
+    info.textContent = `${rows.length} of ${hist.items.length} notifications`;
+    if (!rows.length) {
+      tableBox.replaceChildren(h('div', { class: 'empty', style: 'border-top:1px solid var(--line)' }, h('b', null, hist.items.length ? 'Nothing matches these filters' : 'No notifications yet'),
+        hist.items.length ? 'Try clearing the search or filters.' : 'When a message matches one of your rules it will be listed here.'));
+      pager.replaceChildren();
+      return;
+    }
+    const th = (label, extra) => h('th', extra, label);
+    const body = slice.flatMap((m) => {
+      const key = m.t + '|' + m.rule + '|' + m.chat;
+      const open = hist.open === key;
+      const tr = h('tr', { class: 'hrow' + (open ? ' open' : ''), tabindex: '0', 'aria-expanded': String(open), onclick: () => { hist.open = open ? null : key; draw(); }, onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); hist.open = open ? null : key; draw(); } } },
+        h('td', { class: 'nowrap', title: fmtTime(m.t) }, h('div', null, ago(m.t)), h('div', { class: 'hint' }, fmtTime(m.t))),
+        h('td', null, h('b', null, m.chat)),
+        h('td', null, h('span', { class: 'badge' }, m.rule)),
+        h('td', { class: 'msgcell' }, m.text),
+        h('td', null, h('div', { class: 'row-actions', style: 'gap:4px' }, deliveryBadges(m))));
+      if (!open) return [tr];
+      return [tr, h('tr', { class: 'detail' }, h('td', { colspan: '5' },
+        h('div', { class: 'fulltext' }, m.text),
+        (m.failed ?? []).map((f) => h('div', { class: 'hint', style: 'color:var(--danger)' }, `${METHOD_LABEL[f.method] ?? f.method}: ${f.error}`)),
+        h('div', { class: 'hint' }, `${fmtTime(m.t)} · priority ${m.priority ?? 'default'}`)))];
+    });
+    tableBox.replaceChildren(h('div', { class: 'tablewrap' }, h('table', { class: 'htable' },
+      h('thead', null, h('tr', null,
+        h('th', { class: 'sortable', tabindex: '0', onclick: () => { hist.sort = hist.sort === 'desc' ? 'asc' : 'desc'; draw(); }, onkeydown: (e) => { if (e.key === 'Enter') { hist.sort = hist.sort === 'desc' ? 'asc' : 'desc'; draw(); } } }, 'When ' + (hist.sort === 'desc' ? '↓' : '↑')),
+        th('Chat'), th('Rule'), th('Message'), th('Delivery'))),
+      h('tbody', null, body))));
+    pager.replaceChildren(h('span', { class: 'muted' }, `Page ${hist.page + 1} of ${pages}`),
+      h('div', { class: 'row-actions' },
+        h('button', { class: 'btn sm', disabled: hist.page === 0, onclick: () => { hist.page--; draw(); } }, 'Previous'),
+        h('button', { class: 'btn sm', disabled: hist.page >= pages - 1, onclick: () => { hist.page++; draw(); } }, 'Next')));
+  }
+  hist.redraw = draw;
+  draw();
 }
 
 // ============================================================================
@@ -1173,7 +1364,8 @@ async function renderPage() {
     if (editor) pageEditor(root);
     else if (tab === 'overview') await pageOverview(root);
     else if (tab === 'rules') { if (!S.configExists) root.append(needConfig()); else pageRules(root); }
-    else if (tab === 'notifications') await pageNotifications(root);
+    else if (tab === 'notifications') await pageHistory(root);
+    else if (tab === 'delivery') await pageNotifications(root);
     else if (tab === 'settings') pageSettings(root);
     else await pageAdvanced(root);
   } catch (e) { root.append(h('div', { class: 'alert bad' }, icon('alert'), h('div', null, h('b', null, 'Something went wrong'), h('span', null, e.message)))); }
@@ -1197,6 +1389,8 @@ document.getElementById('theme').addEventListener('click', () => {
   applyTheme(theme);
 });
 document.getElementById('mark').append(icon('mark', 18));
+document.getElementById('bell').append(icon('bell', 19));
+document.getElementById('bell').addEventListener('click', toggleBell);
 
 addEventListener('beforeunload', (e) => { if (pendingKeys().length || editorDirty()) { e.preventDefault(); e.returnValue = ''; } });
 addEventListener('keydown', (e) => {
@@ -1212,6 +1406,7 @@ addEventListener('keydown', (e) => {
     document.getElementById('content').textContent = 'Could not reach whatsgrep: ' + e.message + '. Open the link printed by `whatsgrep ui` again.';
     return;
   }
+  let lastTotal = S.matchTotal;
   renderChrome();
   await renderPage();
   // Keep status fresh. Never redraw a page while the user is editing something.
@@ -1220,7 +1415,13 @@ addEventListener('keydown', (e) => {
     try {
       const before = JSON.stringify(S.status);
       await refresh();
-      if (JSON.stringify(S.status) !== before) { renderChrome(); if (tab === 'overview' && !editor) renderPage(); }
+      if (JSON.stringify(S.status) !== before || S.matchTotal !== lastTotal) {
+        const grew = S.matchTotal !== lastTotal;
+        lastTotal = S.matchTotal;
+        renderChrome();
+        if (tab === 'overview' && !editor) renderPage();
+        else if (tab === 'notifications' && grew && hist.redraw) { hist.items = (await api('GET', '/api/notifications')).items; hist.redraw(); markSeen(); }
+      }
     } catch {}
   }, 2500);
 })();

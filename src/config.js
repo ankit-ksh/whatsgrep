@@ -13,6 +13,7 @@ export function parseConfig(text) {
   if (!Array.isArray(methods) || methods.some((m) => !METHODS.includes(m))) {
     throw new Error(`notifications must be a list of: ${METHODS.join(', ')}`);
   }
+  if (!methods.length) throw new Error(`notifications needs at least one of: ${METHODS.join(', ')}`);
   const rules = (doc.rules ?? []).map(compileRule);
   rules.forEach((r, i) => {
     if (!r.name) throw new Error(`rule #${i + 1} needs a name`);

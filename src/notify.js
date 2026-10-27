@@ -50,4 +50,5 @@ export async function notify(methods, payload) {
   results.forEach((r, i) => {
     if (r.status === 'rejected') console.error(`[${payload.rule}] ${methods[i]} notification failed: ${r.reason.message}`);
   });
+  return results.map((r, i) => ({ method: methods[i], ok: r.status === 'fulfilled', error: r.status === 'rejected' ? r.reason.message : undefined }));
 }

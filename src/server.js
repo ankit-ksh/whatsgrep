@@ -12,7 +12,7 @@ import { qrSvg } from './qrsvg.js';
 import { formToRule, ruleToForm } from './ruleform.js';
 import { getAsset } from './sea.js';
 import { isServiceInstalled, manageService } from './service.js';
-import { clearAccount, readAccount, readChats, readStatus, sendCommand } from './status.js';
+import { clearAccount, clearMatches, readAccount, readChats, readMatches, readStatus, sendCommand } from './status.js';
 import { savedTopic, forgetTopic, randomTopic, saveTopic } from './state.js';
 import { storeName } from './secrets.js';
 import { exampleText } from './commands.js';
@@ -48,6 +48,7 @@ const sameJson = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 // Applies UI settings to the YAML document, keeping its comments and untouched rules as written.
 function applySettings(doc, body) {
+  if (body.notifications !== undefined && !body.notifications.length) throw new HttpError('Keep at least one notification type on.');
   if (body.notifications !== undefined) doc.set('notifications', doc.createNode(body.notifications));
   if (body.ntfyServer !== undefined) doc.setIn(['ntfy', 'server'], String(body.ntfyServer).trim());
   if (body.repeatWindowHours !== undefined) doc.setIn(['settings', 'repeat_window_hours'], Number(body.repeatWindowHours));
@@ -102,6 +103,8 @@ export function startServer(ctx, { port = 0 } = {}) {
       configError,
       config, rules,
       status: readStatus(dataDir) ?? null,
+      recentMatches: readMatches(dataDir, 20),
+      matchTotal: readMatches(dataDir).length,
       whatsapp: { account: readAccount(dataDir) ?? null, hasSession: existsSync(join(dataDir, 'auth')) },
       runAtLogin: isServiceInstalled(),
       browserFound: browser,
@@ -137,6 +140,8 @@ export function startServer(ctx, { port = 0 } = {}) {
       const message = matchesMessage(rule, String(body.text ?? ''));
       return { usable: true, chat, message, matched: chat && message };
     },
+    'GET /api/notifications': () => ({ items: readMatches(dataDir) }),
+    'POST /api/notifications/clear': () => { clearMatches(dataDir); return {}; },
     'GET /api/chats': () => {
       const st = readStatus(dataDir);
       return { ...readChats(dataDir), running: !!st?.running, linked: !!(st?.running && st.account) };
