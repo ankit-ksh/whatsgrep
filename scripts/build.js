@@ -64,6 +64,9 @@ writeFileSync(join(out, 'sea-config.json'), JSON.stringify({
 }));
 execFileSync(process.execPath, ['--experimental-sea-config', join(out, 'sea-config.json')], { stdio: 'inherit' });
 copyFileSync(process.execPath, exe);
+if (process.platform === 'linux') {
+  try { execFileSync('strip', ['--strip-unneeded', exe], { stdio: 'inherit' }); } catch { console.warn('strip not available; keeping full-size runtime'); }
+}
 if (!win) chmodSync(exe, 0o755);
 if (mac) execFileSync('codesign', ['--remove-signature', exe], { stdio: 'inherit' });
 execFileSync(process.execPath, [
