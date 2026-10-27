@@ -1448,9 +1448,18 @@ addEventListener('keydown', (e) => {
   }
 });
 
+const WANT_API = 4;
 (async () => {
   try { await refresh(); } catch (e) {
     document.getElementById('content').textContent = 'Could not reach whatsgrep: ' + e.message + '. Open the link printed by `whatsgrep ui` again.';
+    return;
+  }
+  if (S.apiVersion !== WANT_API) {
+    document.getElementById('content').replaceChildren(h('div', { class: 'card' }, h('div', { class: 'empty' },
+      h('b', null, 'Restart whatsgrep to use this page'),
+      'This page is newer than the whatsgrep program serving it, so some buttons would say “not found”. ',
+      'Stop it (press Ctrl+C in the terminal where you ran “whatsgrep ui”) and start it again, then reload this page.',
+      h('div', { class: 'hint', style: 'margin-top:10px' }, 'Your tracker and background service are not affected.'))));
     return;
   }
   let lastTotal = S.matchTotal;

@@ -75,6 +75,9 @@ function applySettings(doc, body) {
   }
 }
 
+// Bump when the page needs API routes an older running server does not have.
+export const API_VERSION = 4;
+
 export function startServer(ctx, { port = 0 } = {}) {
   const { configFile, dataDir, serviceArgs } = ctx;
   const token = randomBytes(18).toString('base64url');
@@ -97,6 +100,8 @@ export function startServer(ctx, { port = 0 } = {}) {
     let browser = null;
     try { browser = findBrowser({ override: config?.browser || undefined }) ?? null; } catch {}
     return {
+      apiVersion: API_VERSION,
+      pid: process.pid,
       platform: process.platform,
       configFile, dataDir,
       configExists: existsSync(configFile),
