@@ -338,14 +338,14 @@
 <body>
 <div class="app">
   <aside class="sidebar">
-    <div class="brand"><span class="mark" id="mark"></span><span>whatsgrep<small>WhatsApp keyword alerts</small></span></div>
+    <div class="brand"><span class="mark" id="mark"></span><span>whatsgrep</span></div>
     <nav class="nav" id="nav" aria-label="Sections"></nav>
     <div class="grow"></div>
     <div class="sidefoot"><span id="foot">local only</span><span class="spacer"></span><button class="btn ghost icon" id="theme" title="Switch light / dark" aria-label="Switch light or dark theme"></button></div>
   </aside>
   <div class="main">
     <header class="topbar">
-      <div class="titles"><h1 id="title"></h1><div class="sub" id="subtitle"></div></div>
+      <div class="titles"><h1 id="title"></h1></div>
       <div class="tools"><button class="btn ghost icon bell" id="bell" title="Notifications" aria-haspopup="true"></button><span class="tools" id="tools"></span></div>
     </header>
     <div class="content" id="content"></div>
@@ -560,7 +560,6 @@ function renderChrome() {
 
   const meta = TABS.find((t) => t[0] === tab);
   document.getElementById('title').textContent = editor ? (editor.index < 0 ? 'New rule' : 'Edit rule') : meta[1];
-  document.getElementById('subtitle').textContent = editor ? 'Say which chats and messages should notify you' : meta[3];
 
   const tools = document.getElementById('tools');
   if (!S) { tools.replaceChildren(); return; }
