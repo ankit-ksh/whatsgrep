@@ -12,7 +12,7 @@ import { qrSvg } from './qrsvg.js';
 import { formToRule, ruleToForm } from './ruleform.js';
 import { getAsset } from './sea.js';
 import { isServiceInstalled, manageService } from './service.js';
-import { clearAccount, readAccount, readStatus, sendCommand } from './status.js';
+import { clearAccount, readAccount, readChats, readStatus, sendCommand } from './status.js';
 import { savedTopic, forgetTopic, randomTopic, saveTopic } from './state.js';
 import { storeName } from './secrets.js';
 import { exampleText } from './commands.js';
@@ -136,6 +136,15 @@ export function startServer(ctx, { port = 0 } = {}) {
       const chat = matchesChat(rule, [body.chat ?? '']);
       const message = matchesMessage(rule, String(body.text ?? ''));
       return { usable: true, chat, message, matched: chat && message };
+    },
+    'GET /api/chats': () => {
+      const st = readStatus(dataDir);
+      return { ...readChats(dataDir), running: !!st?.running, linked: !!(st?.running && st.account) };
+    },
+    'POST /api/chats/refresh': () => {
+      if (!readStatus(dataDir)?.running) return { running: false };
+      sendCommand(dataDir, 'chats');
+      return { running: true };
     },
     'POST /api/whatsapp/check': () => {
       if (!readStatus(dataDir)?.running) return { running: false };

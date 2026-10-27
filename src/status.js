@@ -47,3 +47,12 @@ export function takeCommand(dataDir) {
     return c;
   } catch { return undefined; }
 }
+
+// Chat list exported by the tracker so the UI can offer a picker (also usable while it is stopped).
+const chatsFile = (dataDir) => join(dataDir, 'chats.json');
+export function writeChats(dataDir, chats) {
+  try { mkdirSync(dataDir, { recursive: true }); writeFileSync(chatsFile(dataDir), JSON.stringify({ at: Date.now(), chats }), { mode: 0o600 }); } catch {}
+}
+export function readChats(dataDir) {
+  try { return JSON.parse(readFileSync(chatsFile(dataDir), 'utf8')); } catch { return { at: 0, chats: [] }; }
+}

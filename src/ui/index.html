@@ -243,6 +243,14 @@
   dialog p { margin: 0 0 18px; color: var(--muted); }
   dialog .row-actions { justify-content: flex-end; }
   .secret { filter: blur(6px); user-select: none; }
+  dialog.picker { width: min(620px, 94vw); }
+  .pickrows { max-height: 52vh; overflow: auto; border: 1px solid var(--line); border-radius: 10px; margin-top: 8px; }
+  .pickrow { display: flex; gap: 10px; align-items: center; padding: 9px 12px; }
+  .pickrow + .pickrow { border-top: 1px solid var(--line); }
+  .pickrow .who { flex: 1; min-width: 0; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .pickrow .who b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+  .pickrow select { width: 150px; height: 32px; flex: none; }
+  @media (max-width: 560px) { .pickrow { flex-wrap: wrap; } .pickrow select { width: 100%; } }
   pre.log { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; overflow: auto; max-height: 380px; font-size: 12.5px; margin: 0; white-space: pre-wrap; word-break: break-word; }
   .loc { display: flex; gap: 10px; align-items: center; padding: 6px 0; }
   .loc .k { width: 130px; color: var(--muted); font-size: 13px; flex: none; }
@@ -818,6 +826,73 @@ function chipInput(list, { isChat, placeholder, onChange }) {
   return h('div', { class: 'chipinput' }, box, sel);
 }
 
+// ============================================================================
+// chat picker: search your real chats and add them in different ways
+// ============================================================================
+async function chatPicker(list, onAdd) {
+  let data = await api('GET', '/api/chats');
+  let query = '';
+  const rowsBox = h('div', { class: 'pickrows' });
+  const note = h('div', { class: 'hint' });
+  const search = h('input', { type: 'text', placeholder: 'Search by name or number', 'aria-label': 'Search chats', oninput: (e) => { query = e.target.value; draw(); } });
+  const refreshBtn = h('button', { class: 'btn sm', onclick: guard(refreshList) }, icon('refresh', 14), 'Refresh list');
+  const d = h('dialog', { class: 'picker' }, h('h3', null, 'Pick chats'),
+    h('p', { style: 'margin-bottom:10px' }, 'Choose how each chat should be matched, then press Add. You can add several.'),
+    h('div', { class: 'row-actions', style: 'margin-bottom:10px' }, h('div', { style: 'flex:1;min-width:200px' }, search), refreshBtn), note, rowsBox,
+    h('div', { class: 'row-actions', style: 'justify-content:flex-end;margin-top:14px' }, h('button', { class: 'btn primary', onclick: () => d.close() }, 'Done')));
+  d.addEventListener('close', () => d.remove());
+  document.body.append(d);
+  d.showModal();
+
+  async function refreshList() {
+    if (!data.running) { toast('Start the tracker (and link WhatsApp) to load your chats.', { err: true }); return; }
+    const before = data.at;
+    refreshBtn.disabled = true; refreshBtn.replaceChildren(spinner(), 'Loading…');
+    await api('POST', '/api/chats/refresh');
+    for (let i = 0; i < 12; i++) {
+      await new Promise((r) => setTimeout(r, 800));
+      data = await api('GET', '/api/chats');
+      if (data.at > before) break;
+    }
+    refreshBtn.disabled = false; refreshBtn.replaceChildren(icon('refresh', 14), 'Refresh list');
+    draw();
+  }
+
+  const kindsFor = (c) => [
+    ...(c.name ? [['exact', 'Exact name', c.name], ['contains', 'Name contains', c.name]] : []),
+    ...(c.phone ? [['phone', 'Phone number', c.phone]] : []),
+    ['exact', 'Chat ID', c.id],
+  ];
+
+  function draw() {
+    const q = query.trim().toLowerCase();
+    const all = data.chats ?? [];
+    const hits = all.filter((c) => !q || c.name.toLowerCase().includes(q) || (c.phone ?? '').includes(q.replace(/\D/g, '') || '\u0000'));
+    note.textContent = !all.length
+      ? (data.running ? 'No chats loaded yet. Press “Refresh list”.' : 'Your chat list is not available yet. Start the tracker and link WhatsApp, then open this again.')
+      : `${hits.length} of ${all.length} chats${data.at ? ' · updated ' + ago(data.at) : ''}${hits.length > 80 ? ' · showing the first 80, type to narrow down' : ''}`;
+    rowsBox.replaceChildren(...hits.slice(0, 80).map((c) => {
+      const kinds = kindsFor(c);
+      const sel = h('select', { 'aria-label': 'How to match ' + (c.name || c.id) }, kinds.map(([, l], i) => h('option', { value: i }, l)));
+      const btn = h('button', { class: 'btn sm primary' }, 'Add');
+      const state = () => {
+        const [kind, , value] = kinds[Number(sel.value)];
+        const has = list.some((e) => e.kind === kind && e.value === value);
+        btn.disabled = has; btn.textContent = has ? 'Added ✓' : 'Add';
+      };
+      sel.addEventListener('change', state);
+      btn.addEventListener('click', () => { const [kind, , value] = kinds[Number(sel.value)]; list.push({ kind, value }); onAdd(); state(); });
+      state();
+      return h('div', { class: 'pickrow' },
+        h('div', { class: 'who' }, h('b', null, c.name || (c.phone ? '+' + c.phone : c.id)), h('span', { class: 'badge' }, c.group ? 'Group' : 'Contact'), c.phone && c.name && h('span', { class: 'hint' }, '+' + c.phone)),
+        sel, btn);
+    }));
+  }
+  draw();
+  search.focus();
+  if (data.linked && !data.chats.length) refreshList();
+}
+
 const fieldLabel = (text, small) => h('label', { class: 'lbl' }, text, small && [' ', h('small', null, small)]);
 
 // Extra conditions only appear once used, or when asked for, to keep the form calm.
@@ -921,10 +996,12 @@ function pageEditor(root) {
         ...MODES.map(([v, label]) => h('label', null, h('input', { type: 'radio', name: 'chatmode', checked: mode === v, onchange: setMode(v) }), h('span', null, label)))),
       mode === 'all' && h('div', { class: 'hint', style: 'margin:0' }, 'The rule listens to every chat and group.'),
       mode === 'only' && h('div', null, fieldLabel('Chats to listen to', 'a name, a phone number, or part of a name'),
-        chipInput(d.from.any, { isChat: true, placeholder: 'e.g. Mess Coupons, 919876543210', onChange: touch })),
+        chipInput(d.from.any, { isChat: true, placeholder: 'e.g. Mess Coupons, 919876543210', onChange: touch }),
+        h('div', { style: 'margin-top:8px' }, h('button', { class: 'btn sm', onclick: guard(() => chatPicker(d.from.any, () => { touch(); rerender(); })) }, icon('search', 14), 'Pick from my chats'))),
       mode === 'only' && sectionEditor(d.from, true, E.ui, 'f', touch, rerender),
       mode === 'except' && h('div', null, fieldLabel('Chats to leave out', 'every other chat is listened to'),
-        chipInput(d.from.exclude, { isChat: true, placeholder: 'e.g. Family, Work updates', onChange: touch }))));
+        chipInput(d.from.exclude, { isChat: true, placeholder: 'e.g. Family, Work updates', onChange: touch }),
+        h('div', { style: 'margin-top:8px' }, h('button', { class: 'btn sm', onclick: guard(() => chatPicker(d.from.exclude, () => { touch(); rerender(); })) }, icon('search', 14), 'Pick from my chats')))));
 
   const msgCard = h('div', { class: 'card' }, step(3, 'What to look for', 'Words the message must (or must not) contain. Capital letters do not matter.'),
     h('div', { class: 'body' }, sectionEditor(d.message, false, E.ui, 'm', touch, rerender)));

@@ -10,7 +10,7 @@ import { findBrowser } from './browser.js';
 import { defaultPaths, legacyFiles } from './paths.js';
 import { COMMANDS_HELP, runCommand } from './commands.js';
 import { runShell } from './shell.js';
-import { clearAccount, readStatus, takeCommand, writeAccount, writeStatus } from './status.js';
+import { clearAccount, readStatus, sendCommand, takeCommand, writeAccount, writeChats, writeStatus } from './status.js';
 import { startServer } from './server.js';
 import { openBrowser } from './open.js';
 import { isPackaged } from './sea.js';
@@ -244,6 +244,23 @@ setInterval(async () => {
     try { stats.waState = await client.getState(); } catch (e) { stats.waState = `ERROR ${e.message}`; }
     stats.checkedAt = Date.now();
     publish();
+  } else if (cmd.action === 'chats') {
+    try {
+      const chats = await client.pupPage.evaluate(() => {
+        const col = window.require('WAWebCollections').Chat;
+        const models = col.getModelsArray ? col.getModelsArray() : col.models;
+        return models.slice(0, 1500).map((c) => {
+          let phone = '';
+          try {
+            const wid = c.id;
+            const p = wid.server === 'lid' ? window.require('WAWebApiContact').getPhoneNumber(wid) : wid;
+            if (!c.isGroup) phone = p?.user ?? '';
+          } catch {}
+          return { id: c.id._serialized, name: c.formattedTitle || c.name || '', group: !!c.isGroup, phone, t: c.t || 0 };
+        });
+      });
+      writeChats(opt['data-dir'], chats.sort((a, b) => b.t - a.t));
+    } catch (e) { console.warn(`could not read the chat list: ${e.message}`); }
   } else if (cmd.action === 'logout') {
     try { await client.logout(); } catch (e) { console.warn(`logout: ${e.message}`); }
     await client.destroy().catch(() => {});
@@ -259,6 +276,8 @@ client.on('ready', () => {
   stats.waState = 'CONNECTED';
   stats.checkedAt = Date.now();
   writeAccount(opt['data-dir'], stats.account);
+  // Refresh the chat list for the UI's picker shortly after connecting.
+  setTimeout(() => { try { sendCommand(opt['data-dir'], 'chats'); } catch {} }, 8000);
   delete stats.qr;
   publish('listening');
   client.pupBrowser?.on('disconnected', () => die(1, 'The browser closed unexpectedly.'));
