@@ -64,7 +64,7 @@
   .topbar .sub { color: var(--muted); font-size: 13px; }
   .topbar .titles { min-width: 0; flex: 1; }
   .topbar .tools { display: flex; align-items: center; gap: 10px; }
-  .content { padding: 26px 32px 120px; width: 100%; max-width: 1120px; margin: 0 auto; }
+  .content { padding: 26px 32px 32px; width: 100%; max-width: 1120px; margin: 0 auto; }
 
   /* primitives */
   .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 16px; overflow: hidden; }
@@ -220,16 +220,12 @@
   .checks li { display: flex; gap: 8px; align-items: center; }
   .checks .ok { color: var(--accent); } .checks .no { color: var(--danger); }
 
-  /* save bar */
-  .savebar { position: fixed; left: var(--sidebar); right: 0; bottom: 0; z-index: 30; display: flex; justify-content: center; padding: 0 32px 18px; pointer-events: none; }
-  .savebar > div { pointer-events: auto; display: flex; align-items: center; gap: 10px; background: var(--text); color: var(--bg); border-radius: 14px; padding: 10px 12px 10px 18px; box-shadow: var(--shadow-lg); max-width: 760px; width: 100%; }
+  /* save bar: docked footer, stays at the bottom of the page */
+  .savebar { position: sticky; bottom: 0; z-index: 30; margin-top: auto; background: var(--surface); border-top: 1px solid var(--line-strong); }
+  .savebar > div { display: flex; align-items: center; gap: 10px; padding: 12px 32px; width: 100%; max-width: 1184px; margin: 0 auto; }
   .savebar .msg { flex: 1; font-weight: 500; font-size: 14px; display: flex; align-items: center; gap: 9px; }
   .savebar .msg::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--warn); flex: none; }
   .savebar .msg.ok::before { background: var(--accent); }
-  .savebar .btn { border-color: transparent; }
-  .savebar .btn.ghost { color: color-mix(in srgb, var(--bg) 78%, transparent); }
-  .savebar .btn.ghost:hover:not(:disabled) { background: rgba(127,127,127,.28); color: var(--bg); }
-  .savebar .btn.primary { color: var(--accent-ink); }
 
   /* toasts and dialogs */
   .toasts { position: fixed; right: 20px; top: 76px; z-index: 60; display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
@@ -299,8 +295,8 @@
     .brand { padding: 0 8px 0 4px; } .brand > span:not(.mark) { display: none; }
     .nav { flex-direction: row; } .nav button .label { display: none; } .nav .count, .sidefoot { display: none; }
     .sidebar .grow { display: none; }
-    .topbar { padding: 12px 16px; position: static; flex-wrap: wrap; } .content { padding: 18px 16px 120px; }
-    .savebar { padding: 0 12px 12px; }
+    .topbar { padding: 12px 16px; position: static; flex-wrap: wrap; } .content { padding: 18px 16px 24px; }
+    .savebar > div { padding: 10px 16px; }
     .setting { flex-direction: column; align-items: stretch; gap: 10px; }
     .setting .ctl input[type=text] { width: 100%; }
     .kindsel { width: 100% !important; }
@@ -327,10 +323,10 @@
       <div class="tools"><button class="btn ghost icon bell" id="bell" title="Notifications" aria-haspopup="true"></button><span class="tools" id="tools"></span></div>
     </header>
     <div class="content" id="content"></div>
+    <div class="savebar" id="savebar" hidden></div>
   </div>
 </div>
 <div class="bellpop" id="bellpop" hidden></div>
-<div class="savebar" id="savebar" hidden></div>
 <div class="toasts" id="toasts" aria-live="polite"></div>
 <script>
 'use strict';
