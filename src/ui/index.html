@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>whatsgrep</title>
+<title>whatsgrep · WhatsApp keyword alerts</title>
 <link rel="icon" href="data:,">
 <style>
   :root {
@@ -48,6 +48,7 @@
   .sidebar { position: sticky; top: 0; height: 100vh; background: var(--surface); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 18px 12px 14px; gap: 4px; }
   .brand { display: flex; align-items: center; gap: 10px; padding: 4px 10px 18px; font-weight: 700; font-size: 16px; letter-spacing: -.01em; }
   .brand .mark { width: 30px; height: 30px; border-radius: 9px; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; }
+  .brand small { display: block; font-weight: 500; font-size: 11.5px; color: var(--muted); letter-spacing: 0; margin-top: 1px; }
   .nav { display: flex; flex-direction: column; gap: 2px; }
   .nav button { display: flex; align-items: center; gap: 11px; padding: 9px 10px; border: 0; background: none; border-radius: 9px; color: var(--muted); font-weight: 500; text-align: left; }
   .nav button:hover { background: var(--surface-2); color: var(--text); }
@@ -239,6 +240,11 @@
   dialog p { margin: 0 0 18px; color: var(--muted); }
   dialog .row-actions { justify-content: flex-end; }
   .secret { filter: blur(6px); user-select: none; }
+  .purpose { background: linear-gradient(135deg, var(--accent-soft), var(--surface)); }
+  .psteps { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; }
+  .pstep { display: flex; gap: 10px; align-items: flex-start; }
+  .pstep .stepnum { margin-top: 0; }
+  .pstep .hint { margin: 2px 0 0; }
   dialog.linkdlg { width: min(640px, 94vw); padding: 0; overflow: hidden; }
   .ld-head { display: flex; justify-content: space-between; align-items: flex-start; padding: 18px 22px; border-bottom: 1px solid var(--line); }
   .ld-head h3 { margin: 0; }
@@ -332,7 +338,7 @@
 <body>
 <div class="app">
   <aside class="sidebar">
-    <div class="brand"><span class="mark" id="mark"></span><span>whatsgrep</span></div>
+    <div class="brand"><span class="mark" id="mark"></span><span>whatsgrep<small>WhatsApp keyword alerts</small></span></div>
     <nav class="nav" id="nav" aria-label="Sections"></nav>
     <div class="grow"></div>
     <div class="sidefoot"><span id="foot">local only</span><span class="spacer"></span><button class="btn ghost icon" id="theme" title="Switch light / dark" aria-label="Switch light or dark theme"></button></div>
@@ -810,10 +816,22 @@ async function loginDialog() {
 // ============================================================================
 // page: overview
 // ============================================================================
+function purposeCard() {
+  const step = (n, title, text) => h('div', { class: 'pstep' }, h('span', { class: 'stepnum' }, String(n)), h('div', null, h('b', null, title), h('div', { class: 'hint' }, text)));
+  return h('div', { class: 'card purpose' }, h('div', { class: 'body' },
+    h('h2', { style: 'font-size:17px' }, 'Never miss the WhatsApp message that matters'),
+    h('p', { class: 'muted', style: 'margin:6px 0 14px;max-width:720px' }, 'whatsgrep watches the chats you choose and alerts you the moment a message matches your rules, so you do not have to keep refreshing busy buy/sell, jobs or deals groups. It only listens. It never sends messages or replies for you.'),
+    h('div', { class: 'psteps' },
+      step(1, 'Link WhatsApp', 'Connect your account once with a QR code.'),
+      step(2, 'Write rules', 'Pick the chats and the words that count.'),
+      step(3, 'Get alerts', 'On this computer, your phone, or both.'))));
+}
+
 async function pageOverview(root) {
   const s = S.status;
   const t = tracker();
   const left = h('div'), right = h('div');
+  root.append(purposeCard());
   if (!S.configExists) {
     root.append(h('div', { class: 'card' }, h('div', { class: 'empty' },
       h('b', null, 'Welcome to whatsgrep'), 'It watches your WhatsApp chats and notifies you when a message matches your rules.',
@@ -889,7 +907,7 @@ let ruleFilter = '';
 function pageRules(root) {
   const holder = h('div');
   root.append(h('div', { class: 'toolbar' },
-    h('div', { class: 'search' }, icon('search'), h('input', { type: 'text', placeholder: 'Search rules', 'aria-label': 'Search rules', value: ruleFilter, oninput: (e) => { ruleFilter = e.target.value; drawList(); } })),
+    h('div', { class: 'search' }, icon('search'), h('input', { type: 'text', 'aria-label': 'Search rules', value: ruleFilter, oninput: (e) => { ruleFilter = e.target.value; drawList(); } })),
     h('span', { style: 'flex:1' }),
     h('button', { class: 'btn primary', onclick: () => openEditor(-1, newRule()) }, icon('plus', 15), 'Add rule')), holder);
   function drawList() {
@@ -926,13 +944,13 @@ function openEditor(index, draft, onlyChats) {
 // ============================================================================
 const TAG = { contains: 'part', re: 'regex', phone: 'tel', exact: '' };
 
-function chipInput(list, { isChat, placeholder, onChange }) {
+function chipInput(list, { isChat, label, onChange }) {
   const kinds = isChat
     ? [['exact', 'Exact name / ID'], ['contains', 'Part of name'], ['re', 'Regex pattern'], ['phone', 'Phone number']]
     : [['exact', 'Whole word'], ['contains', 'Part of a word'], ['re', 'Regex pattern']];
   let kind = 'exact';
   const box = h('div', { class: 'chipbox' });
-  const inp = h('input', { type: 'text', placeholder, 'aria-label': placeholder, autocomplete: 'off', spellcheck: 'false' });
+  const inp = h('input', { type: 'text', 'aria-label': label, autocomplete: 'off', spellcheck: 'false' });
   const sel = h('select', { class: 'kindsel', 'aria-label': 'How to match', onchange: (e) => { kind = e.target.value; } }, kinds.map(([v, l]) => h('option', { value: v }, l)));
   function draw() {
     box.replaceChildren(...list.map((e, i) => h('span', { class: 'chip k-' + e.kind }, TAG[e.kind] && h('em', null, TAG[e.kind]), h('span', { class: 'v' }, e.value),
@@ -969,7 +987,7 @@ async function chatPicker(list, onAdd) {
   let query = '';
   const rowsBox = h('div', { class: 'pickrows' });
   const note = h('div', { class: 'hint' });
-  const search = h('input', { type: 'text', placeholder: 'Search by name or number', 'aria-label': 'Search chats', oninput: (e) => { query = e.target.value; draw(); } });
+  const search = h('input', { type: 'text', 'aria-label': 'Search chats', oninput: (e) => { query = e.target.value; draw(); } });
   const refreshBtn = h('button', { class: 'btn sm', onclick: guard(refreshList) }, icon('refresh', 14), 'Refresh list');
   const d = h('dialog', { class: 'picker' }, h('h3', null, 'Pick chats'),
     h('p', { style: 'margin-bottom:10px' }, 'Choose how each chat should be matched, then press Add. You can add several.'),
@@ -1035,17 +1053,17 @@ function sectionEditor(sec, isChat, ui, key, touch, rerender) {
   const out = [];
   if (!isChat) {
     out.push(h('div', null, fieldLabel('Notify when the message has any of these', 'Enter adds one, commas add several'),
-      chipInput(sec.any, { isChat, placeholder: 'e.g. laptop, bike, free pickup', onChange: touch })));
+      chipInput(sec.any, { isChat, label: 'Words to look for', onChange: touch })));
   }
   sec.all.forEach((g, gi) => out.push(h('div', { class: 'sub-block' },
     h('div', { class: 'top' }, h('b', null, isChat ? 'Chat must also be one of' : (gi === 0 && !sec.any.length ? 'The message must have one of' : 'And also one of')), h('button', { class: 'btn ghost sm', onclick: () => { sec.all.splice(gi, 1); touch(); rerender(); } }, icon('x', 14), 'Remove')),
-    chipInput(g, { isChat, placeholder: 'any one of these is enough', onChange: touch }))));
+    chipInput(g, { isChat, label: 'Words, any one of which is enough', onChange: touch }))));
   const showEx = sec.exclude.length || ui[key + 'Ex'];
   if (showEx) {
     out.push(h('div', { class: 'sub-block ignore' },
       h('div', { class: 'top' }, h('b', null, isChat ? 'Skip these chats' : 'Ignore the message if it has any of these'),
         h('button', { class: 'btn ghost sm', onclick: () => { sec.exclude.length = 0; ui[key + 'Ex'] = false; touch(); rerender(); } }, icon('x', 14), 'Remove')),
-      chipInput(sec.exclude, { isChat, placeholder: isChat ? 'chats to skip' : 'e.g. buy, wtb, wanted', onChange: touch })));
+      chipInput(sec.exclude, { isChat, label: isChat ? 'Chats to skip' : 'Words to ignore', onChange: touch })));
   }
   const links = [];
   if (!isChat) links.push(h('button', { class: 'btn sm', onclick: () => { sec.all.push([]); rerender(); } }, icon('plus', 14), 'Also require another word'));
@@ -1110,7 +1128,7 @@ function pageEditor(root) {
 
   const nameCard = h('div', { class: 'card' }, step(1, 'Name and loudness', 'A name you will recognise, and how strongly phone alerts should buzz'),
     h('div', { class: 'body' },
-      h('div', { class: 'namefield' }, fieldLabel('Rule name'), h('input', { type: 'text', value: d.name, placeholder: 'e.g. Mess coupons for sale', oninput: (e) => { d.name = e.target.value; touch(); } })),
+      h('div', { class: 'namefield' }, fieldLabel('Rule name'), h('input', { type: 'text', value: d.name, 'aria-label': 'Rule name', oninput: (e) => { d.name = e.target.value; touch(); } })),
       h('div', { class: 'prio' }, fieldLabel('Alert priority'),
         h('div', { class: 'seg', role: 'radiogroup' }, PRIORITIES.map(([v, l]) => h('label', null, h('input', { type: 'radio', name: 'prio', checked: d.priority === v, onchange: () => { d.priority = v; touch(); } }), h('span', null, l)))))));
 
@@ -1132,11 +1150,11 @@ function pageEditor(root) {
         ...MODES.map(([v, label]) => h('label', null, h('input', { type: 'radio', name: 'chatmode', checked: mode === v, onchange: setMode(v) }), h('span', null, label)))),
       mode === 'all' && h('div', { class: 'hint', style: 'margin:0' }, 'The rule listens to every chat and group. Lists you built under the other choices are kept until you leave this page, but are not saved.'),
       mode === 'only' && h('div', null, fieldLabel('Chats to listen to', 'a name, a phone number, or part of a name'),
-        chipInput(d.from.any, { isChat: true, placeholder: 'e.g. Mess Coupons, 919876543210', onChange: touch }),
+        chipInput(d.from.any, { isChat: true, label: 'Chats to listen to', onChange: touch }),
         h('div', { style: 'margin-top:8px' }, h('button', { class: 'btn sm', onclick: guard(() => chatPicker(d.from.any, () => { touch(); rerender(); })) }, icon('search', 14), 'Pick from my chats'))),
       mode === 'only' && sectionEditor(d.from, true, E.ui, 'f', touch, rerender),
       mode === 'except' && h('div', null, fieldLabel('Chats to leave out', 'every other chat is listened to'),
-        chipInput(d.from.exclude, { isChat: true, placeholder: 'e.g. Family, Work updates', onChange: touch }),
+        chipInput(d.from.exclude, { isChat: true, label: 'Chats to leave out', onChange: touch }),
         h('div', { style: 'margin-top:8px' }, h('button', { class: 'btn sm', onclick: guard(() => chatPicker(d.from.exclude, () => { touch(); rerender(); })) }, icon('search', 14), 'Pick from my chats')))));
 
   const msgCard = h('div', { class: 'card' }, step(3, 'What to look for', 'Words the message must (or must not) contain. Capital letters do not matter.'),
@@ -1149,8 +1167,8 @@ function pageEditor(root) {
 
   const tryCard = h('div', { class: 'card' }, h('div', { class: 'head' }, h('h2', null, 'Try it'), h('p', { class: 'desc' }, 'Test with a sample message. Nothing is sent.')),
     h('div', { class: 'body', style: 'display:flex;flex-direction:column;gap:12px' },
-      h('div', null, fieldLabel('Chat name'), h('input', { type: 'text', placeholder: 'e.g. Mess Coupons', value: E.test.chat, oninput: (e) => { E.test.chat = e.target.value; runTest(); } })),
-      h('div', null, fieldLabel('Message'), h('input', { type: 'text', placeholder: 'e.g. selling lunch coupon', value: E.test.text, oninput: (e) => { E.test.text = e.target.value; runTest(); } })),
+      h('div', null, fieldLabel('Chat name'), h('input', { type: 'text', 'aria-label': 'Chat name', value: E.test.chat, oninput: (e) => { E.test.chat = e.target.value; runTest(); } })),
+      h('div', null, fieldLabel('Message'), h('input', { type: 'text', 'aria-label': 'Message', value: E.test.text, oninput: (e) => { E.test.text = e.target.value; runTest(); } })),
       resultBox));
 
   root.append(
@@ -1223,7 +1241,7 @@ async function pageNotifications(root) {
     stage('ntfyTopic', (await api('POST', '/api/ntfy/generate')).topic);
     renderPage();
   });
-  const topicInput = h('input', { type: 'text', class: 'mono', value: topic, placeholder: 'Click “Generate” for a strong private topic', spellcheck: 'false', autocomplete: 'off', 'aria-label': 'ntfy topic',
+  const topicInput = h('input', { type: 'text', class: 'mono', value: topic, spellcheck: 'false', autocomplete: 'off', 'aria-label': 'ntfy topic',
     oninput: (e) => stage('ntfyTopic', e.target.value), onchange: () => renderPage() });
   const topicOk = /^[A-Za-z0-9_-]{8,64}$/.test(topic.trim());
   const weak = topicOk && topic.trim().length < 20;
@@ -1296,7 +1314,7 @@ async function pageHistory(root) {
   const tableBox = h('div');
   const pager = h('div', { class: 'row-actions', style: 'justify-content:space-between;padding:12px 16px;border-top:1px solid var(--line)' });
 
-  const search = h('input', { type: 'text', placeholder: 'Search chat, rule or message', 'aria-label': 'Search notifications', value: hist.q, oninput: (e) => { hist.q = e.target.value; hist.page = 0; draw(); } });
+  const search = h('input', { type: 'text', 'aria-label': 'Search notifications', value: hist.q, oninput: (e) => { hist.q = e.target.value; hist.page = 0; draw(); } });
   root.append(h('div', { class: 'card' },
     h('div', { class: 'filters' },
       h('div', { class: 'search' }, icon('search'), search),
@@ -1369,8 +1387,8 @@ function pageSettings(root) {
       h('div', { class: 'hint' }, 'The same text from the same sender only notifies once in this time. 0 turns it off.')),
       h('div', { class: 'ctl' }, h('input', { type: 'number', min: 0, step: 'any', value: val('repeatWindowHours'), 'aria-label': 'Hours', oninput: (e) => stage('repeatWindowHours', e.target.value) }), h('span', { class: 'muted' }, 'hours'))),
     h('div', { class: 'setting' + chg('browser') }, h('div', { class: 'what' }, h('b', null, 'Browser'),
-      h('div', { class: 'hint' }, S.browserFound ? ['Using ', h('code', null, S.browserFound), '. Set a path only to use a different one.'] : 'No Chrome, Chromium, Edge or Brave found. Install one, or give its path.')),
-      h('div', { class: 'ctl' }, h('input', { type: 'text', placeholder: 'Detect automatically', value: val('browser'), 'aria-label': 'Browser path', oninput: (e) => stage('browser', e.target.value) })))));
+      h('div', { class: 'hint' }, S.browserFound ? ['Using ', h('code', null, S.browserFound), '. Leave the path empty to detect it automatically, or set one to use a different browser.'] : 'No Chrome, Chromium, Edge or Brave found. Install one, or give its path. Leave it empty to detect automatically.')),
+      h('div', { class: 'ctl' }, h('input', { type: 'text', value: val('browser'), 'aria-label': 'Browser path', oninput: (e) => stage('browser', e.target.value) })))));
 
   const copy = (text) => guard(async () => { await navigator.clipboard.writeText(text); toast('Copied'); });
   root.append(h('div', { class: 'card' }, h('div', { class: 'head' }, h('h2', null, 'Where things are stored')),
