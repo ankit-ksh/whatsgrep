@@ -573,7 +573,7 @@ function renderChrome() {
     h('button', { class: 'btn', onclick: guard(() => control('stop')) }, icon('stop', 15), 'Stop'));
   tools.replaceChildren(h('span', { class: 'pill ' + t.cls }, t.spin ? spinner() : h('span', { class: 'd' }), t.label), ...ctl);
   renderBell();
-  document.getElementById('foot').textContent = S.platform === 'win32' ? 'Windows' : S.platform === 'darwin' ? 'macOS' : 'Linux';
+  document.getElementById('foot').textContent = (S.platform === 'win32' ? 'Windows' : S.platform === 'darwin' ? 'macOS' : 'Linux') + (S.version ? ' · v' + S.version : '');
   renderSaveBar();
 }
 
@@ -1395,6 +1395,7 @@ function pageSettings(root) {
     h('div', { class: 'body' },
       h('div', { class: 'loc' }, h('span', { class: 'k' }, 'Config file'), h('code', null, S.configFile), h('button', { class: 'btn ghost icon', title: 'Copy', 'aria-label': 'Copy config path', onclick: copy(S.configFile) }, icon('copy', 16))),
       h('div', { class: 'loc' }, h('span', { class: 'k' }, 'Session and data'), h('code', null, S.dataDir), h('button', { class: 'btn ghost icon', title: 'Copy', 'aria-label': 'Copy data path', onclick: copy(S.dataDir) }, icon('copy', 16))),
+      h('div', { class: 'loc' }, h('span', { class: 'k' }, 'Version'), h('span', { class: 'muted' }, S.version ? 'whatsgrep ' + S.version : 'unknown')),
       h('div', { class: 'loc' }, h('span', { class: 'k' }, 'Secrets'), h('span', { class: 'muted' }, S.keychain)),
       h('p', { class: 'hint', style: 'margin-top:8px' }, 'These are standard per-user folders, independent of any project. The session folder holds your linked WhatsApp login, so keep it private.'))));
 }

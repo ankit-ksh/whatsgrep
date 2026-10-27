@@ -14,6 +14,7 @@ import { appendMatch, clearAccount, readStatus, sendCommand, takeCommand, trimMa
 import { startServer } from './server.js';
 import { openBrowser } from './open.js';
 import { isPackaged } from './sea.js';
+import { VERSION } from './version.js';
 
 const HELP = `whatsgrep - get notified when WhatsApp messages match your rules
 
@@ -32,6 +33,7 @@ Usage: whatsgrep [options]            start the tracker
       --dry-run         print matches, don't send notifications
       --check <text>    test rules against a text offline and exit
                         (also: whatsgrep check <text>)
+  -v, --version         print the version
   -h, --help
 
 ${COMMANDS_HELP}`;
@@ -48,6 +50,7 @@ const OPTIONS = {
   verbose: { type: 'boolean' },
   check: { type: 'string' },
   help: { type: 'boolean', short: 'h' },
+  version: { type: 'boolean', short: 'v' },
 };
 
 // Flags come before the command; everything after the command word belongs to the command
@@ -64,6 +67,7 @@ try {
 }
 const positionals = argv.slice(cmdAt);
 
+if (opt.version) { console.log(`whatsgrep ${VERSION}`); process.exit(0); }
 if (opt.help) { console.log(HELP); process.exit(0); }
 
 const { config: configFile, dataDir } = defaultPaths(opt);

@@ -1,6 +1,6 @@
 {
   "name": "whatsgrep",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Watch selected WhatsApp chats for keyword patterns and get desktop or ntfy push notifications. Ships as one executable for Windows, macOS and Linux.",
   "type": "module",
   "bin": {
@@ -29,15 +29,24 @@
     "url": "https://github.com/ankit-ksh/whatsgrep/issues"
   },
   "keywords": [
-    "whatsapp",
-    "ntfy",
-    "notifications",
-    "keyword",
     "alerts",
+    "cli",
+    "desktop-notifications",
+    "executable",
+    "keyword",
+    "notifications",
+    "ntfy",
+    "whatsapp",
     "whatsapp-web.js"
   ],
   "devDependencies": {
     "esbuild": "^0.25.10",
     "postject": "^1.0.0-alpha.6"
-  }
+  },
+  "files": [
+    "src",
+    "config.example.yaml",
+    "LICENSE",
+    "README.md"
+  ]
 }

@@ -2,6 +2,7 @@
 // Needs the official Node.js binary (nodejs.org / actions/setup-node); distro builds that link
 // shared libraries won't run on other machines. Cross-compiling isn't supported: build on each OS.
 import { build } from 'esbuild';
+import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { chmodSync, copyFileSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -26,6 +27,7 @@ await build({
   minify: true,
   legalComments: 'none',
   alias: { puppeteer: 'puppeteer-core' },
+  define: { __WG_VERSION__: JSON.stringify(JSON.parse(readFileSync('package.json', 'utf8')).version) },
   external: ['@aws-sdk/client-s3'], // optional S3 support inside unzipper, never used here
   // CommonJS dependencies expect require, __filename and __dirname to exist.
   banner: { js: [

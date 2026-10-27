@@ -16,6 +16,7 @@ import { clearAccount, clearMatches, readAccount, readChats, readMatches, readSt
 import { savedTopic, forgetTopic, randomTopic, saveTopic } from './state.js';
 import { storeName } from './secrets.js';
 import { exampleText } from './commands.js';
+import { VERSION } from './version.js';
 
 const PRIORITIES = ['min', 'low', 'default', 'high', 'urgent'];
 
@@ -100,6 +101,7 @@ export function startServer(ctx, { port = 0 } = {}) {
     let browser = null;
     try { browser = findBrowser({ override: config?.browser || undefined }) ?? null; } catch {}
     return {
+      version: VERSION,
       apiVersion: API_VERSION,
       pid: process.pid,
       platform: process.platform,
