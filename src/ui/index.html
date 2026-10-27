@@ -556,6 +556,117 @@ async function go(next) {
 }
 
 // ============================================================================
+// WhatsApp account: who is linked, check, log out, log in (QR popup)
+// ============================================================================
+const fmtNumber = (n) => (n ? '+' + n : '');
+function waInfo() {
+  const st = S.status;
+  const saved = S.whatsapp?.account;
+  const live = st?.running ? st.account : null;
+  if (live) return { kind: 'linked', account: live, live: true };
+  if (st?.running && st.qr) return { kind: 'unlinked', waiting: true };
+  if (st?.running && ['starting', 'linking'].includes(st.state)) return { kind: 'connecting', account: saved };
+  if (!st?.running && saved && S.whatsapp.hasSession) return { kind: 'linked', account: saved, live: false };
+  return { kind: 'unlinked' };
+}
+
+function whatsappCard() {
+  const wa = waInfo();
+  const st = S.status;
+  const pill = wa.kind === 'linked' ? (wa.live ? ['Linked', 'ok'] : ['Linked · tracker stopped', 'warn']) : wa.kind === 'connecting' ? ['Connecting…', 'warn'] : ['Not linked', 'bad'];
+  const who = wa.account?.number
+    ? [h('b', { style: 'font-size:17px' }, fmtNumber(wa.account.number)), wa.account.name && h('span', { class: 'muted' }, ' · ' + wa.account.name)]
+    : [h('b', null, wa.kind === 'linked' ? 'Linked account' : 'No WhatsApp account linked')];
+  const hint = wa.kind === 'linked'
+    ? (wa.live ? 'Connected and listening to your chats.' : 'This account is saved. Press Start in the top bar to begin listening.')
+    : wa.kind === 'connecting' ? 'Opening WhatsApp Web…' : 'Link a WhatsApp account so whatsgrep can watch your chats. It only listens and never sends messages.';
+  const checked = wa.live && st.checkedAt ? ` · checked ${ago(st.checkedAt)}${st.waState && st.waState !== 'CONNECTED' ? ' (' + st.waState + ')' : ''}` : '';
+  const acts = [];
+  if (wa.kind === 'unlinked') acts.push(h('button', { class: 'btn primary', onclick: guard(loginDialog) }, 'Log in with QR code'));
+  if (wa.kind !== 'unlinked') acts.push(h('button', { id: 'wacheck', class: 'btn', onclick: guard(checkWhatsapp) }, icon('refresh', 15), 'Check status'));
+  if (wa.kind === 'linked') acts.push(h('button', { class: 'btn danger', onclick: guard(logoutWhatsapp) }, 'Log out'));
+  return h('div', { class: 'card' }, h('div', { class: 'setting' },
+    h('div', { class: 'what' }, h('div', { class: 'row-actions', style: 'gap:10px;margin-bottom:4px' }, h('b', { style: 'font-size:13px;color:var(--muted)' }, 'WhatsApp'), h('span', { class: 'pill ' + pill[1] }, pill[0])),
+      h('div', null, who), h('div', { class: 'hint' }, hint + checked)),
+    h('div', { class: 'ctl' }, acts)));
+}
+
+async function checkWhatsapp() {
+  const btn = document.getElementById('wacheck');
+  if (btn) { btn.disabled = true; btn.replaceChildren(spinner(), 'Checking…'); }
+  const before = S.status?.checkedAt ?? 0;
+  const r = await api('POST', '/api/whatsapp/check');
+  if (r.running) {
+    for (let i = 0; i < 8; i++) {
+      await new Promise((x) => setTimeout(x, 800));
+      await refresh();
+      if ((S.status?.checkedAt ?? 0) > before) break;
+    }
+    const ok = S.status?.waState === 'CONNECTED';
+    toast(ok ? 'WhatsApp is connected.' : `WhatsApp reports: ${S.status?.waState ?? 'no answer'}`, { err: !ok });
+  } else {
+    await refresh();
+    toast('The tracker is stopped, so the live connection cannot be checked. The saved account is still there.');
+  }
+  renderChrome(); renderPage();
+}
+
+async function logoutWhatsapp() {
+  const running = S.status?.running;
+  if (!(await ask({ title: 'Log out of WhatsApp?', body: running ? 'whatsgrep will unlink this device and stop. You will need to scan a QR code to link again.' : 'This removes the saved session from this computer. You will need to scan a QR code to link again.', ok: 'Log out', danger: true }))) return;
+  const r = await api('POST', '/api/whatsapp/logout');
+  toast(r.message);
+  for (let i = 0; i < 12; i++) {
+    await new Promise((x) => setTimeout(x, 1000));
+    await refresh();
+    if (!S.status?.running && !S.whatsapp.account) break;
+  }
+  renderChrome(); renderPage();
+}
+
+// Popup with the login QR. Starts the tracker if needed and closes itself once linked.
+async function loginDialog() {
+  const body = h('div', { style: 'display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;min-height:300px;justify-content:center' });
+  let open = true;
+  const d = h('dialog', null, h('h3', null, 'Link your WhatsApp'), body,
+    h('div', { class: 'row-actions', style: 'justify-content:flex-end;margin-top:16px' }, h('button', { class: 'btn', onclick: () => d.close() }, 'Close')));
+  d.addEventListener('close', () => { open = false; d.remove(); renderChrome(); renderPage(); });
+  document.body.append(d);
+  d.showModal();
+  const showWait = (msg) => body.replaceChildren(h('span', { class: 'spin', style: 'width:28px;height:28px;border-width:3px;color:var(--accent)' }), h('div', { class: 'muted' }, msg));
+  showWait('Starting WhatsApp…');
+
+  if (!S.status?.running) await control('start');
+  let shownQr = null;
+  const started = Date.now();
+  while (open) {
+    await new Promise((x) => setTimeout(x, 1000));
+    await refresh().catch(() => {});
+    const st = S.status;
+    if (st?.running && st.account) {
+      toast('Linked as ' + fmtNumber(st.account.number));
+      d.close();
+      return;
+    }
+    if (st?.running && st.qr) {
+      if (st.qr !== shownQr) {
+        shownQr = st.qr;
+        const svg = await fetch('/api/qr.svg', { headers: { 'x-token': token } }).then((r) => (r.ok ? r.text() : null)).catch(() => null);
+        if (svg) body.replaceChildren(
+          h('img', { class: 'qr', alt: 'WhatsApp login QR code', width: 220, height: 220, src: 'data:image/svg+xml;base64,' + btoa(svg) }),
+          h('ol', { class: 'how', style: 'text-align:left' }, h('li', null, 'Open WhatsApp on your phone'), h('li', null, 'Settings → Linked devices → Link a device'), h('li', null, 'Scan this code')),
+          h('div', { class: 'hint' }, 'The code refreshes about every 20 seconds.'));
+      }
+    } else if (st?.running && st.state === 'linking') showWait('Linking…');
+    else if (!st?.running && !busy && Date.now() - started > 6000) {
+      body.replaceChildren(h('div', null, 'The tracker stopped before showing a code.'), h('div', { class: 'hint' }, 'Open Advanced → Log to see why.'));
+      return;
+    }
+    if (Date.now() - started > 180000) { body.replaceChildren('Timed out waiting for the scan. Close this and try again.'); return; }
+  }
+}
+
+// ============================================================================
 // page: overview
 // ============================================================================
 async function pageOverview(root) {
@@ -571,14 +682,7 @@ async function pageOverview(root) {
   if (S.configError) root.append(h('div', { class: 'alert bad' }, icon('alert'), h('div', null, h('b', null, 'The config file has a problem'), h('span', null, S.configError + ' Fix it in Advanced.'))));
   if (!S.browserFound) root.append(h('div', { class: 'alert' }, icon('alert'), h('div', null, h('b', null, 'No browser found'), h('span', null, 'whatsgrep needs Chrome, Chromium, Edge or Brave installed. You can also set a path in Settings.'))));
 
-  if (s?.running && s.qr) {
-    const img = h('img', { class: 'qr', alt: 'WhatsApp login QR code', width: 220, height: 220 });
-    root.append(h('div', { class: 'card' }, h('div', { class: 'linkcard' }, img,
-      h('div', { style: 'flex:1;min-width:240px' }, h('h2', null, 'Link your WhatsApp'),
-        h('ol', { class: 'how' }, h('li', null, 'Open WhatsApp on your phone'), h('li', null, 'Go to Settings → Linked devices'), h('li', null, 'Tap “Link a device” and scan this code')),
-        h('p', { class: 'hint' }, 'The code refreshes about every 20 seconds.')))));
-    fetch('/api/qr.svg', { headers: { 'x-token': token } }).then((r) => (r.ok ? r.text() : null)).then((svg) => { if (svg) img.src = 'data:image/svg+xml;base64,' + btoa(svg); }).catch(() => {});
-  }
+  root.append(whatsappCard());
 
   const stat = (label, value, small) => h('div', { class: 'stat' }, h('span', null, label), h('b', null, value), small && h('small', null, small));
   root.append(h('div', { class: 'stats' },
@@ -588,7 +692,7 @@ async function pageOverview(root) {
     stat('Sending to', (S.config?.notifications ?? []).map((m) => (m === 'ntfy' ? 'Phone' : 'Desktop')).join(' + ') || 'nowhere', 'see Notifications')));
 
   const steps = [
-    [t.key === 'listening', 'Link WhatsApp', 'Press Start, then scan the code', null],
+    [waInfo().kind === 'linked', 'Link WhatsApp', 'Use “Log in” in the WhatsApp card above', null],
     [S.rules.length > 0, 'Add a rule', 'Say what you want to hear about', 'rules'],
     [(S.config?.notifications ?? []).length > 0, 'Choose where alerts go', 'Desktop, phone, or both', 'notifications'],
     [S.runAtLogin, 'Start with your computer', 'So it is always on', 'settings'],
@@ -669,7 +773,7 @@ function pageRules(root) {
 }
 
 function openEditor(index, draft, onlyChats) {
-  editor = { index, draft, original: clone(draft), test: { chat: '', text: '' }, ui: { onlyChats: !!onlyChats || draft.from.any.length > 0 || draft.from.all.length > 0 } };
+  editor = { index, draft, original: clone(draft), test: { chat: '', text: '' }, ui: { chatMode: onlyChats || draft.from.any.length || draft.from.all.length ? 'only' : draft.from.exclude.length ? 'except' : 'all' } };
   renderChrome(); renderPage();
   window.scrollTo(0, 0);
 }
@@ -704,10 +808,10 @@ function chipInput(list, { isChat, placeholder, onChange }) {
     if (added) onChange();
   }
   inp.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); commit(); }
+    if (e.key === 'Enter') { e.preventDefault(); commit(); inp.focus(); }
     else if (e.key === 'Backspace' && !inp.value && list.length) { list.pop(); draw(); onChange(); }
   });
-  inp.addEventListener('input', () => { if (kind !== 're' && inp.value.includes(',')) commit(); });
+  inp.addEventListener('input', () => { if (kind !== 're' && inp.value.includes(',')) { commit(); inp.focus(); } });
   inp.addEventListener('blur', commit);
   box.addEventListener('click', () => inp.focus());
   draw();
@@ -753,8 +857,8 @@ function summarize(d) {
   const b = (t) => h('b', null, t);
   const rows = [];
   const chats = d.from.any;
-  rows.push(['Listens to', chats.length ? b(list(chats, 4)) : b('every chat')]);
-  if (d.from.exclude.length) rows.push(['Except chats', b(list(d.from.exclude, 4))]);
+  if (chats.length || !d.from.exclude.length) rows.push(['Listens to', chats.length ? b(list(chats, 4)) : b('every chat')]);
+  if (d.from.exclude.length) rows.push([chats.length ? 'Except chats' : 'Every chat except', b(list(d.from.exclude, 4))]);
   const m = d.message;
   const groups = m.all.filter((g) => g.length);
   if (m.any.length) rows.push(['Message has', ['any of ', b(list(m.any))]]);
@@ -792,7 +896,6 @@ function pageEditor(root) {
     }, 220);
   }
 
-  const chatsOnly = E.ui.onlyChats;
   const step = (n, title, desc) => h('div', { class: 'head stephead' }, h('span', { class: 'stepnum' }, String(n)), h('div', null, h('h2', null, title), h('p', { class: 'desc' }, desc)));
 
   const nameCard = h('div', { class: 'card' }, step(1, 'Name and loudness', 'A name you will recognise, and how strongly phone alerts should buzz'),
@@ -801,19 +904,27 @@ function pageEditor(root) {
       h('div', { class: 'prio' }, fieldLabel('Alert priority'),
         h('div', { class: 'seg', role: 'radiogroup' }, PRIORITIES.map(([v, l]) => h('label', null, h('input', { type: 'radio', name: 'prio', checked: d.priority === v, onchange: () => { d.priority = v; touch(); } }), h('span', null, l)))))));
 
+  const mode = E.ui.chatMode;
+  const setMode = (next) => guard(async () => {
+    if (next === mode) return;
+    const losing = (next !== 'only' && (d.from.any.length || d.from.all.length)) || (next !== 'except' && mode === 'except' && d.from.exclude.length);
+    if (losing && !(await ask({ title: 'Change which chats?', body: 'This clears the chats you listed for the current choice.', ok: 'Change', danger: true }))) { rerender(); return; }
+    if (next !== 'only') { d.from.any = []; d.from.all = []; }
+    if (mode === 'except' && next !== 'except') d.from.exclude = [];
+    E.ui.chatMode = next;
+    touch(); rerender();
+  });
+  const MODES = [['all', 'All chats'], ['only', 'Only these chats'], ['except', 'All except these chats']];
   const chatCard = h('div', { class: 'card' }, step(2, 'Where to listen', 'Which groups or contacts this rule applies to'),
     h('div', { class: 'body' },
       h('div', { class: 'seg', role: 'radiogroup', 'aria-label': 'Which chats' },
-        ...[[false, 'Every chat'], [true, 'Only certain chats']].map(([v, label]) => h('label', null,
-          h('input', { type: 'radio', name: 'chatmode', checked: chatsOnly === v, onchange: guard(async () => {
-            if (!v && (d.from.any.length || d.from.all.length) && !(await ask({ title: 'Listen to every chat?', body: 'This clears the list of chats you picked.', ok: 'Clear list', danger: true }))) { rerender(); return; }
-            E.ui.onlyChats = v;
-            if (!v) { d.from.any = []; d.from.all = []; }
-            touch(); rerender();
-          }) }), h('span', null, label)))),
-      chatsOnly && h('div', null, fieldLabel('Chats to listen to', 'a name, a phone number, or part of a name'),
+        ...MODES.map(([v, label]) => h('label', null, h('input', { type: 'radio', name: 'chatmode', checked: mode === v, onchange: setMode(v) }), h('span', null, label)))),
+      mode === 'all' && h('div', { class: 'hint', style: 'margin:0' }, 'The rule listens to every chat and group.'),
+      mode === 'only' && h('div', null, fieldLabel('Chats to listen to', 'a name, a phone number, or part of a name'),
         chipInput(d.from.any, { isChat: true, placeholder: 'e.g. Mess Coupons, 919876543210', onChange: touch })),
-      sectionEditor(d.from, true, E.ui, 'f', touch, rerender)));
+      mode === 'only' && sectionEditor(d.from, true, E.ui, 'f', touch, rerender),
+      mode === 'except' && h('div', null, fieldLabel('Chats to leave out', 'every other chat is listened to'),
+        chipInput(d.from.exclude, { isChat: true, placeholder: 'e.g. Family, Work updates', onChange: touch }))));
 
   const msgCard = h('div', { class: 'card' }, step(3, 'What to look for', 'Words the message must (or must not) contain. Capital letters do not matter.'),
     h('div', { class: 'body' }, sectionEditor(d.message, false, E.ui, 'm', touch, rerender)));

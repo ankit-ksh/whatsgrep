@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { existsSync, readFileSync, statSync, watchFile } from 'node:fs';
+import { existsSync, readFileSync, rmSync, statSync, watchFile } from 'node:fs';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { hasMessageCondition, matches, matchesMessage } from './matcher.js';
@@ -10,7 +10,7 @@ import { findBrowser } from './browser.js';
 import { defaultPaths, legacyFiles } from './paths.js';
 import { COMMANDS_HELP, runCommand } from './commands.js';
 import { runShell } from './shell.js';
-import { readStatus, writeStatus } from './status.js';
+import { clearAccount, readStatus, takeCommand, writeAccount, writeStatus } from './status.js';
 import { startServer } from './server.js';
 import { openBrowser } from './open.js';
 import { isPackaged } from './sea.js';
@@ -206,7 +206,10 @@ client.on('qr', (qr) => {
 });
 client.on('authenticated', () => { qrLines = 0; delete stats.qr; publish('linking'); });
 client.on('auth_failure', (m) => die(2, `WhatsApp login failed: ${m}. Run whatsgrep in a terminal to link again.`));
-client.on('disconnected', (reason) => die(1, `Disconnected from WhatsApp (${reason}).`));
+client.on('disconnected', (reason) => {
+  if (String(reason).toUpperCase() === 'LOGOUT') { clearAccount(opt['data-dir']); die(2, 'WhatsApp was logged out (from the phone). Link again to continue.'); }
+  die(1, `Disconnected from WhatsApp (${reason}).`);
+});
 // chat id -> { name, phone }. wwebjs's getChat()/getChats() throw "r: r" on some WhatsApp
 // Web versions, so read from WhatsApp's in-page collections directly. Newer WhatsApp uses
 // anonymous "@lid" ids for chats; resolve those to the real phone number when known.
@@ -233,7 +236,29 @@ async function chatInfoOf(id) {
   }
 }
 
+// Commands from the UI: re-check the connection, or log out.
+setInterval(async () => {
+  const cmd = takeCommand(opt['data-dir']);
+  if (!cmd) return;
+  if (cmd.action === 'check') {
+    try { stats.waState = await client.getState(); } catch (e) { stats.waState = `ERROR ${e.message}`; }
+    stats.checkedAt = Date.now();
+    publish();
+  } else if (cmd.action === 'logout') {
+    try { await client.logout(); } catch (e) { console.warn(`logout: ${e.message}`); }
+    await client.destroy().catch(() => {});
+    rmSync(join(opt['data-dir'], 'auth'), { recursive: true, force: true });
+    clearAccount(opt['data-dir']);
+    delete stats.account;
+    die(2, 'Logged out of WhatsApp.');
+  }
+}, 1000);
+
 client.on('ready', () => {
+  stats.account = { number: client.info?.wid?.user ?? '', name: client.info?.pushname ?? '' };
+  stats.waState = 'CONNECTED';
+  stats.checkedAt = Date.now();
+  writeAccount(opt['data-dir'], stats.account);
   delete stats.qr;
   publish('listening');
   client.pupBrowser?.on('disconnected', () => die(1, 'The browser closed unexpectedly.'));

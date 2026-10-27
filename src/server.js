@@ -1,7 +1,7 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 import { isScalar, parseDocument, visit } from 'yaml';
 import { findBrowser } from './browser.js';
 import { parseConfig } from './config.js';
@@ -12,7 +12,7 @@ import { qrSvg } from './qrsvg.js';
 import { formToRule, ruleToForm } from './ruleform.js';
 import { getAsset } from './sea.js';
 import { isServiceInstalled, manageService } from './service.js';
-import { readStatus } from './status.js';
+import { clearAccount, readAccount, readStatus, sendCommand } from './status.js';
 import { savedTopic, forgetTopic, randomTopic, saveTopic } from './state.js';
 import { storeName } from './secrets.js';
 import { exampleText } from './commands.js';
@@ -102,6 +102,7 @@ export function startServer(ctx, { port = 0 } = {}) {
       configError,
       config, rules,
       status: readStatus(dataDir) ?? null,
+      whatsapp: { account: readAccount(dataDir) ?? null, hasSession: existsSync(join(dataDir, 'auth')) },
       runAtLogin: isServiceInstalled(),
       browserFound: browser,
       priorities: PRIORITIES,
@@ -135,6 +136,18 @@ export function startServer(ctx, { port = 0 } = {}) {
       const chat = matchesChat(rule, [body.chat ?? '']);
       const message = matchesMessage(rule, String(body.text ?? ''));
       return { usable: true, chat, message, matched: chat && message };
+    },
+    'POST /api/whatsapp/check': () => {
+      if (!readStatus(dataDir)?.running) return { running: false };
+      sendCommand(dataDir, 'check');
+      return { running: true };
+    },
+    'POST /api/whatsapp/logout': () => {
+      if (readStatus(dataDir)?.running) { sendCommand(dataDir, 'logout'); return { message: 'Logging out…' }; }
+      // Tracker is stopped: only the saved session on this computer can be removed.
+      rmSync(join(dataDir, 'auth'), { recursive: true, force: true });
+      clearAccount(dataDir);
+      return { message: 'Removed the saved session. Also remove “whatsgrep” under Linked devices on your phone if it is still listed.' };
     },
     'POST /api/tracker': (body) => {
       const msg = body.action === 'start' ? startTracker(ctx)
