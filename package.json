@@ -1,14 +1,15 @@
 {
   "name": "whatsgrep",
   "version": "0.1.0",
-  "description": "Watch selected WhatsApp chats for keyword patterns and get desktop or ntfy push notifications.",
+  "description": "Watch selected WhatsApp chats for keyword patterns and get desktop or ntfy push notifications. Ships as one executable for Windows, macOS and Linux.",
   "type": "module",
   "bin": {
     "whatsgrep": "src/cli.js"
   },
   "scripts": {
     "start": "node src/cli.js",
-    "test": "node --test"
+    "test": "node --test",
+    "build": "node scripts/build.js"
   },
   "engines": {
     "node": ">=20"
@@ -34,5 +35,9 @@
     "keyword",
     "alerts",
     "whatsapp-web.js"
-  ]
+  ],
+  "devDependencies": {
+    "esbuild": "^0.25.10",
+    "postject": "^1.0.0-alpha.6"
+  }
 }

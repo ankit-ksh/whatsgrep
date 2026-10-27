@@ -1,0 +1,1041 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>whatsgrep</title>
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    --bg: #f4f5f7; --surface: #ffffff; --surface-2: #f8f9fb; --line: #e4e7ec; --line-strong: #d0d5dd;
+    --text: #101828; --muted: #667085; --faint: #98a2b3;
+    --accent: #0e9f6e; --accent-hover: #0b8a5f; --accent-ink: #ffffff; --accent-soft: #e5f6ee;
+    --danger: #d92d20; --danger-soft: #fdecea; --warn: #b54708; --warn-soft: #fef0c7; --info: #1d4ed8; --info-soft: #e8efff;
+    --shadow: 0 1px 2px rgba(16,24,40,.05), 0 1px 3px rgba(16,24,40,.06);
+    --shadow-lg: 0 12px 32px rgba(16,24,40,.16);
+    --radius: 12px; --sidebar: 244px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme=light]) {
+      --bg: #0d1013; --surface: #151a1f; --surface-2: #1a2026; --line: #252c34; --line-strong: #323b45;
+      --text: #e8ebef; --muted: #98a2b3; --faint: #667085;
+      --accent: #2fc18c; --accent-hover: #4ad0a0; --accent-ink: #06231a; --accent-soft: #12281f;
+      --danger: #f97066; --danger-soft: #2d1715; --warn: #fdb022; --warn-soft: #2b2110; --info: #7da2ff; --info-soft: #172136;
+      --shadow: none; --shadow-lg: 0 12px 32px rgba(0,0,0,.5);
+    }
+  }
+  :root[data-theme=dark] {
+    --bg: #0d1013; --surface: #151a1f; --surface-2: #1a2026; --line: #252c34; --line-strong: #323b45;
+    --text: #e8ebef; --muted: #98a2b3; --faint: #667085;
+    --accent: #2fc18c; --accent-hover: #4ad0a0; --accent-ink: #06231a; --accent-soft: #12281f;
+    --danger: #f97066; --danger-soft: #2d1715; --warn: #fdb022; --warn-soft: #2b2110; --info: #7da2ff; --info-soft: #172136;
+    --shadow: none; --shadow-lg: 0 12px 32px rgba(0,0,0,.5);
+  }
+  * { box-sizing: border-box; }
+  html { color-scheme: light dark; }
+  :root[data-theme=light] { color-scheme: light; }
+  :root[data-theme=dark] { color-scheme: dark; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14.5px/1.5 Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .ico { display: inline-flex; flex: none; }
+  .ico svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* shell */
+  .app { display: grid; grid-template-columns: var(--sidebar) minmax(0, 1fr); min-height: 100vh; }
+  .sidebar { position: sticky; top: 0; height: 100vh; background: var(--surface); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 18px 12px 14px; gap: 4px; }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 4px 10px 18px; font-weight: 700; font-size: 16px; letter-spacing: -.01em; }
+  .brand .mark { width: 30px; height: 30px; border-radius: 9px; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; }
+  .nav { display: flex; flex-direction: column; gap: 2px; }
+  .nav button { display: flex; align-items: center; gap: 11px; padding: 9px 10px; border: 0; background: none; border-radius: 9px; color: var(--muted); font-weight: 500; text-align: left; }
+  .nav button:hover { background: var(--surface-2); color: var(--text); }
+  .nav button.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .nav .count { margin-left: auto; font-size: 12px; background: var(--surface-2); color: var(--muted); border-radius: 99px; padding: 0 8px; }
+  .nav .dot { margin-left: auto; width: 8px; height: 8px; border-radius: 50%; background: var(--warn); }
+  .sidebar .grow { flex: 1; }
+  .sidefoot { display: flex; align-items: center; gap: 8px; padding: 8px 6px 0; border-top: 1px solid var(--line); color: var(--faint); font-size: 12.5px; }
+  .sidefoot .spacer { flex: 1; }
+
+  .main { min-width: 0; display: flex; flex-direction: column; }
+  .topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 14px; padding: 14px 32px; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); min-height: 68px; }
+  .topbar h1 { margin: 0; font-size: 19px; letter-spacing: -.015em; line-height: 1.2; }
+  .topbar .sub { color: var(--muted); font-size: 13px; }
+  .topbar .titles { min-width: 0; flex: 1; }
+  .topbar .tools { display: flex; align-items: center; gap: 10px; }
+  .content { padding: 26px 32px 120px; width: 100%; max-width: 1120px; margin: 0 auto; }
+
+  /* primitives */
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 16px; overflow: hidden; }
+  .card > .head { padding: 16px 20px 0; }
+  .card > .body { padding: 16px 20px 20px; }
+  .card h2 { margin: 0; font-size: 15px; letter-spacing: -.005em; }
+  .card .desc, .hint { color: var(--muted); font-size: 13px; margin: 2px 0 0; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 36px; padding: 0 14px; border-radius: 9px; border: 1px solid var(--line-strong); background: var(--surface); font-weight: 600; font-size: 13.5px; white-space: nowrap; }
+  .btn:hover:not(:disabled) { background: var(--surface-2); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .btn.primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+  .btn.danger { color: var(--danger); }
+  .btn.ghost { border-color: transparent; background: none; color: var(--muted); }
+  .btn.ghost:hover:not(:disabled) { background: var(--surface-2); color: var(--text); }
+  .btn.sm { height: 30px; padding: 0 10px; font-size: 13px; }
+  .btn.icon { width: 32px; height: 32px; padding: 0; }
+  .btn:disabled { opacity: .55; cursor: default; }
+  .btn.busy { cursor: progress; opacity: 1; }
+  .spin { width: 15px; height: 15px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .7s linear infinite; flex: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .pill { display: inline-flex; align-items: center; gap: 7px; padding: 4px 11px; border-radius: 99px; font-size: 13px; font-weight: 600; background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); white-space: nowrap; }
+  .pill .d { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+  .pill .spin { width: 12px; height: 12px; border-width: 2px; }
+  .pill.ok { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+  .pill.warn { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
+  .pill.bad { background: var(--danger-soft); color: var(--danger); border-color: transparent; }
+  .badge { display: inline-block; padding: 1px 9px; border-radius: 99px; font-size: 12px; font-weight: 600; background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
+  .badge.p-high { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
+  .badge.p-urgent { background: var(--danger-soft); color: var(--danger); border-color: transparent; }
+  .badge.p-low, .badge.p-min { color: var(--faint); }
+  input[type=text], input[type=number], select, textarea { width: 100%; height: 38px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 9px; background: var(--surface); }
+  input[type=text]:hover, input[type=number]:hover, select:hover, textarea:hover { border-color: var(--faint); }
+  input:focus, select:focus, textarea:focus { outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent); border-color: var(--accent); }
+  textarea { height: auto; padding: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; line-height: 1.55; resize: vertical; }
+  label.lbl { display: block; font-weight: 600; font-size: 13px; margin-bottom: 6px; }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; }
+  code { background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; word-break: break-all; }
+  .row-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .muted { color: var(--muted); }
+
+  /* switch */
+  .switch { position: relative; display: inline-block; width: 40px; height: 23px; flex: none; }
+  .switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; z-index: 1; width: 100%; height: 100%; }
+  .switch span { position: absolute; inset: 0; background: var(--line-strong); border-radius: 99px; transition: background .15s; }
+  .switch span::after { content: ""; position: absolute; top: 3px; left: 3px; width: 17px; height: 17px; border-radius: 50%; background: #fff; transition: transform .15s; box-shadow: 0 1px 2px rgba(0,0,0,.3); }
+  .switch input:checked + span { background: var(--accent); }
+  .switch input:checked + span::after { transform: translateX(17px); }
+  .switch input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* settings rows */
+  .setting { display: flex; align-items: center; gap: 20px; padding: 16px 20px; }
+  .setting + .setting { border-top: 1px solid var(--line); }
+  .setting .what { flex: 1; min-width: 0; }
+  .setting .what b { display: block; font-size: 14px; }
+  .setting .ctl { flex: none; display: flex; align-items: center; gap: 10px; }
+  .setting .ctl input[type=number] { width: 110px; }
+  .setting .ctl input[type=text] { width: 300px; }
+  .changed { box-shadow: inset 3px 0 0 var(--accent); }
+
+  /* overview */
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .stat { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow); }
+  .stat span { display: block; color: var(--muted); font-size: 12.5px; }
+  .stat b { display: block; font-size: 22px; letter-spacing: -.02em; margin-top: 2px; }
+  .stat small { color: var(--faint); font-size: 12px; }
+  .steps { list-style: none; margin: 0; padding: 0; }
+  .steps li { display: flex; align-items: center; gap: 12px; padding: 11px 20px; border-top: 1px solid var(--line); }
+  .steps .tick { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line-strong); display: grid; place-items: center; flex: none; color: var(--accent-ink); }
+  .steps .tick svg { width: 13px; height: 13px; stroke-width: 3; }
+  .steps li.done .tick { background: var(--accent); border-color: var(--accent); }
+  .steps li.done .t { color: var(--muted); }
+  .steps .t { flex: 1; }
+  .linkcard { display: flex; gap: 24px; padding: 20px; align-items: center; flex-wrap: wrap; }
+  .qr { width: 220px; height: 220px; border-radius: 10px; border: 1px solid var(--line); background: #fff; padding: 6px; flex: none; }
+  .qr.sm { width: 180px; height: 180px; }
+  ol.how { margin: 8px 0 0; padding-left: 20px; color: var(--muted); }
+  ol.how li { margin: 4px 0; }
+  .match { display: flex; gap: 12px; padding: 12px 20px; border-top: 1px solid var(--line); align-items: baseline; }
+  .match .when { width: 74px; color: var(--faint); font-size: 12.5px; flex: none; }
+  .match .txt { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .match .who { font-weight: 600; flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .empty { text-align: center; padding: 40px 20px; color: var(--muted); }
+  .empty b { display: block; color: var(--text); font-size: 15px; margin-bottom: 4px; }
+
+  /* rules list */
+  .toolbar { display: flex; gap: 10px; margin-bottom: 16px; align-items: center; flex-wrap: wrap; }
+  .search { position: relative; flex: 1; min-width: 200px; max-width: 380px; }
+  .search .ico { position: absolute; left: 11px; top: 10px; color: var(--faint); }
+  .search input { padding-left: 36px; }
+  .rule { display: flex; gap: 16px; align-items: flex-start; padding: 16px 20px; }
+  .rule + .rule { border-top: 1px solid var(--line); }
+  .rule .info { flex: 1; min-width: 0; }
+  .rule h3 { margin: 0 0 8px; font-size: 15px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .facts { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 4px 12px; font-size: 13px; margin: 0; }
+  .facts dt { color: var(--faint); }
+  .facts dd { margin: 0; color: var(--muted); overflow-wrap: anywhere; }
+  .facts dd b { color: var(--text); font-weight: 600; }
+  .facts dd i { font-style: normal; color: var(--faint); }
+  .rule .acts { display: flex; gap: 4px; flex: none; }
+  .tpl { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 18px; text-align: left; }
+  .tpl button { text-align: left; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .tpl button:hover { border-color: var(--accent); }
+  .tpl b { display: block; margin-bottom: 2px; font-size: 14px; }
+  .tpl span { color: var(--muted); font-size: 13px; }
+
+  /* editor */
+  .crumbs { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; margin-bottom: 14px; }
+  .crumbs button { background: none; border: 0; color: var(--muted); padding: 0; display: inline-flex; align-items: center; gap: 4px; }
+  .crumbs button:hover { color: var(--text); }
+  .editor { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 20px; align-items: start; }
+  .editor .card .body { display: flex; flex-direction: column; gap: 16px; }
+  .namefield input { height: 44px; font-size: 16px; font-weight: 600; }
+  .seg { display: inline-flex; padding: 3px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; gap: 2px; flex-wrap: wrap; align-self: flex-start; }
+  .seg label { position: relative; }
+  .seg input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; width: 100%; height: 100%; }
+  .seg span { display: block; padding: 6px 14px; border-radius: 7px; font-weight: 600; font-size: 13px; color: var(--muted); }
+  .seg input:checked + span { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+  .seg input:focus-visible + span { outline: 2px solid var(--accent); }
+  .prio .seg span { padding: 6px 12px; }
+  .lbl small { font-weight: 400; color: var(--muted); }
+  .chipinput { display: flex; gap: 8px; align-items: stretch; }
+  .chipbox { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 5px 8px; min-height: 42px; border: 1px solid var(--line-strong); border-radius: 9px; background: var(--surface); cursor: text; }
+  .chipbox:focus-within { outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent); border-color: var(--accent); }
+  .chipbox input { flex: 1; min-width: 140px; border: 0 !important; outline: 0 !important; height: 28px; padding: 0 4px; background: none; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; background: var(--accent-soft); color: var(--text); border-radius: 7px; padding: 2px 4px 2px 9px; font-size: 13.5px; line-height: 22px; }
+  .chip em { font-style: normal; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--accent); }
+  .chip.k-re { background: var(--info-soft); }
+  .chip.k-re em { color: var(--info); }
+  .chip.k-re .v { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px; }
+  .chip button { border: 0; background: none; color: var(--muted); width: 20px; height: 20px; border-radius: 5px; line-height: 1; font-size: 16px; padding: 0; }
+  .chip button:hover { background: rgba(127,127,127,.2); color: var(--text); }
+  .kindsel { width: 168px !important; flex: none; }
+  .sub-block { border: 1px dashed var(--line-strong); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+  .sub-block.ignore { border-color: color-mix(in srgb, var(--danger) 45%, var(--line-strong)); }
+  .sub-block .top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .sub-block .top b { font-size: 13px; }
+  .addlinks { display: flex; gap: 6px; flex-wrap: wrap; }
+  .side { position: sticky; top: 90px; }
+  .stephead { display: flex; gap: 12px; align-items: flex-start; }
+  .stepnum { width: 26px; height: 26px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; font-weight: 700; font-size: 13px; flex: none; margin-top: 1px; }
+  .facts.plain { grid-template-columns: 110px minmax(0, 1fr); }
+  .facts.plain dd { color: var(--text); }
+  .card.off { opacity: .6; }
+  .verdict { display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); }
+  .verdict .big { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; flex: none; background: var(--line); color: var(--muted); }
+  .verdict.yes { background: var(--accent-soft); border-color: transparent; }
+  .verdict.yes .big { background: var(--accent); color: var(--accent-ink); }
+  .verdict.no { background: var(--danger-soft); border-color: transparent; }
+  .verdict.no .big { background: var(--danger); color: #fff; }
+  .verdict b { display: block; }
+  .verdict small { color: var(--muted); }
+  .checks { list-style: none; padding: 0; margin: 12px 0 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+  .checks li { display: flex; gap: 8px; align-items: center; }
+  .checks .ok { color: var(--accent); } .checks .no { color: var(--danger); }
+
+  /* save bar */
+  .savebar { position: fixed; left: var(--sidebar); right: 0; bottom: 0; z-index: 30; display: flex; justify-content: center; padding: 0 32px 18px; pointer-events: none; }
+  .savebar > div { pointer-events: auto; display: flex; align-items: center; gap: 10px; background: var(--text); color: var(--bg); border-radius: 14px; padding: 10px 12px 10px 18px; box-shadow: var(--shadow-lg); max-width: 760px; width: 100%; }
+  .savebar .msg { flex: 1; font-weight: 500; font-size: 14px; display: flex; align-items: center; gap: 9px; }
+  .savebar .msg::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--warn); flex: none; }
+  .savebar .msg.ok::before { background: var(--accent); }
+  .savebar .btn { border-color: transparent; }
+  .savebar .btn.ghost { color: color-mix(in srgb, var(--bg) 78%, transparent); }
+  .savebar .btn.ghost:hover:not(:disabled) { background: rgba(127,127,127,.28); color: var(--bg); }
+  .savebar .btn.primary { color: var(--accent-ink); }
+
+  /* toasts and dialogs */
+  .toasts { position: fixed; right: 20px; top: 76px; z-index: 60; display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
+  .toast { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--line-strong); border-left: 4px solid var(--accent); box-shadow: var(--shadow-lg); border-radius: 10px; padding: 10px 14px; max-width: 420px; animation: pop .18s ease-out; }
+  .toast.err { border-left-color: var(--danger); }
+  .toast button { background: none; border: 0; color: var(--accent); font-weight: 700; padding: 0; white-space: nowrap; }
+  @keyframes pop { from { opacity: 0; transform: translateY(-6px); } }
+  dialog { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--text); padding: 22px; width: min(420px, 92vw); box-shadow: var(--shadow-lg); }
+  dialog::backdrop { background: rgba(16,24,40,.5); }
+  dialog h3 { margin: 0 0 6px; font-size: 16px; }
+  dialog p { margin: 0 0 18px; color: var(--muted); }
+  dialog .row-actions { justify-content: flex-end; }
+  .secret { filter: blur(6px); user-select: none; }
+  pre.log { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; overflow: auto; max-height: 380px; font-size: 12.5px; margin: 0; white-space: pre-wrap; word-break: break-word; }
+  .loc { display: flex; gap: 10px; align-items: center; padding: 6px 0; }
+  .loc .k { width: 130px; color: var(--muted); font-size: 13px; flex: none; }
+  .loc code { flex: 1; min-width: 0; }
+  .alert { display: flex; gap: 12px; padding: 14px 16px; border-radius: 10px; margin-bottom: 16px; background: var(--warn-soft); color: var(--warn); }
+  .alert.bad { background: var(--danger-soft); color: var(--danger); }
+  .alert b { display: block; }
+  .alert span { color: var(--text); font-size: 13.5px; }
+
+  @media (max-width: 1000px) { .editor { grid-template-columns: 1fr; } .side { position: static; } }
+  @media (max-width: 860px) {
+    :root { --sidebar: 0px; }
+    .app { grid-template-columns: 1fr; }
+    .sidebar { position: static; height: auto; flex-direction: row; align-items: center; overflow-x: auto; padding: 8px 10px; border-right: 0; border-bottom: 1px solid var(--line); gap: 4px; }
+    .brand { padding: 0 8px 0 4px; } .brand > span:not(.mark) { display: none; }
+    .nav { flex-direction: row; } .nav button .label { display: none; } .nav .count, .sidefoot { display: none; }
+    .sidebar .grow { display: none; }
+    .topbar { padding: 12px 16px; position: static; flex-wrap: wrap; } .content { padding: 18px 16px 120px; }
+    .savebar { padding: 0 12px 12px; }
+    .setting { flex-direction: column; align-items: stretch; gap: 10px; }
+    .setting .ctl input[type=text] { width: 100%; }
+    .kindsel { width: 100% !important; }
+    .chipinput { flex-direction: column; }
+    .topbar .titles { flex: 1 1 100%; }
+    .topbar .tools { flex-wrap: wrap; }
+    .toasts { top: 12px; right: 12px; }
+    .facts { grid-template-columns: 1fr; gap: 0; } .facts dd { margin-bottom: 6px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><span class="mark" id="mark"></span><span>whatsgrep</span></div>
+    <nav class="nav" id="nav" aria-label="Sections"></nav>
+    <div class="grow"></div>
+    <div class="sidefoot"><span id="foot">local only</span><span class="spacer"></span><button class="btn ghost icon" id="theme" title="Switch light / dark" aria-label="Switch light or dark theme"></button></div>
+  </aside>
+  <div class="main">
+    <header class="topbar">
+      <div class="titles"><h1 id="title"></h1><div class="sub" id="subtitle"></div></div>
+      <div class="tools" id="tools"></div>
+    </header>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+<div class="savebar" id="savebar" hidden></div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<script>
+'use strict';
+// ============================================================================
+// plumbing
+// ============================================================================
+let token = new URLSearchParams(location.search).get('t');
+try { if (token) sessionStorage.setItem('wg', token); else token = sessionStorage.getItem('wg'); } catch {}
+history.replaceState(null, '', '/');
+
+async function api(method, path, body) {
+  const res = await fetch(path, { method, headers: { 'x-token': token ?? '', 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+}
+
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs ?? {})) {
+    if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+    else if (k === 'class') el.className = v;
+    else if (k === 'checked' || k === 'disabled' || k === 'selected' || k === 'hidden') { if (v) el.setAttribute(k, ''); }
+    else if (v !== false && v != null) el.setAttribute(k, v);
+  }
+  for (const kid of kids.flat(Infinity)) if (kid != null && kid !== false) el.append(kid.nodeType ? kid : document.createTextNode(kid));
+  return el;
+}
+
+const ICONS = {
+  home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+  rules: '<path d="M4 6h16M7 12h10M10 18h4"/>',
+  bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
+  sliders: '<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>',
+  code: '<path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  x: '<path d="M18 6 6 18M6 6l12 12"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  play: '<path d="M7 4.5v15l12-7.5z"/>',
+  stop: '<rect x="6" y="6" width="12" height="12" rx="2"/>',
+  refresh: '<path d="M21 12a9 9 0 0 1-15.5 6.2L3 16M3 12a9 9 0 0 1 15.5-6.2L21 8M21 3v5h-5M3 21v-5h5"/>',
+  copy: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
+  trash: '<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>',
+  edit: '<path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+  left: '<path d="m15 18-6-6 6-6"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
+  mark: '<path d="M4 20l1.4-4.2A8 8 0 1 1 8.4 18.7z"/><path d="M9 10h6M9 13h4"/>',
+  alert: '<path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>',
+};
+function icon(name, size) {
+  const s = h('span', { class: 'ico' });
+  s.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"${size ? ` style="width:${size}px;height:${size}px"` : ''}>${ICONS[name]}</svg>`;
+  return s;
+}
+const spinner = () => h('span', { class: 'spin', 'aria-hidden': 'true' });
+
+function toast(msg, opts = {}) {
+  const t = h('div', { class: 'toast' + (opts.err ? ' err' : ''), role: 'status' }, h('span', null, msg),
+    opts.action && h('button', { onclick: () => { t.remove(); opts.action.fn(); } }, opts.action.label));
+  document.getElementById('toasts').append(t);
+  setTimeout(() => t.remove(), opts.err ? 7000 : opts.action ? 9000 : 3200);
+}
+const guard = (fn) => async (...a) => { try { await fn(...a); } catch (e) { toast(e.message, { err: true }); } };
+
+function ask({ title, body, ok = 'Confirm', danger = false }) {
+  return new Promise((resolve) => {
+    const d = h('dialog', null, h('h3', null, title), h('p', null, body),
+      h('div', { class: 'row-actions' },
+        h('button', { class: 'btn', onclick: () => d.close('no') }, 'Cancel'),
+        h('button', { class: 'btn ' + (danger ? 'danger' : 'primary'), onclick: () => d.close('yes') }, ok)));
+    d.addEventListener('close', () => { d.remove(); resolve(d.returnValue === 'yes'); });
+    document.body.append(d);
+    d.showModal();
+  });
+}
+
+const clone = (x) => JSON.parse(JSON.stringify(x));
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+function ago(ms) {
+  const s = Math.round((Date.now() - ms) / 1000);
+  if (s < 45) return 'just now';
+  const m = Math.round(s / 60);
+  if (m < 60) return m + ' min ago';
+  if (m < 1440) return Math.round(m / 60) + ' h ago';
+  return Math.round(m / 1440) + ' d ago';
+}
+
+// ============================================================================
+// state
+// ============================================================================
+let S = null;            // /api/state
+let tab = 'overview';
+let editor = null;       // { index, draft, original, test, ui }
+let pending = {};        // staged settings: notifications, ntfyServer, repeatWindowHours, browser, runAtLogin
+let busy = null;         // 'starting' | 'stopping' | 'restarting' while the tracker changes state
+let busySince = 0;
+let ntfyInfo = null;     // { server, topic, store } from /api/ntfy
+
+const TABS = [
+  ['overview', 'Overview', 'home', 'Is it running, and what has it caught'],
+  ['rules', 'Rules', 'rules', 'What to watch for in your chats'],
+  ['notifications', 'Notifications', 'bell', 'Where alerts are delivered'],
+  ['settings', 'Settings', 'sliders', 'Start-up, browser and repeat handling'],
+  ['advanced', 'Advanced', 'code', 'Config file and log'],
+];
+const TAB_KEYS = { notifications: ['notifications', 'ntfyServer', 'ntfyTopic'], settings: ['repeatWindowHours', 'browser', 'runAtLogin'] };
+const PRIORITIES = [['min', 'Silent'], ['low', 'Low'], ['default', 'Normal'], ['high', 'High'], ['urgent', 'Urgent']];
+
+async function refresh() { S = await api('GET', '/api/state'); }
+
+// ---- staged (unsaved) settings: nothing is applied until the common Save ------
+const baseOf = (k) => ({
+  notifications: S.config?.notifications, ntfyServer: S.config?.ntfyServer, repeatWindowHours: S.config?.repeatWindowHours,
+  browser: S.config?.browser, runAtLogin: S.runAtLogin, ntfyTopic: ntfyInfo?.topic ?? '',
+})[k];
+const val = (k) => (k in pending ? pending[k] : baseOf(k));
+function stage(k, v) {
+  if (k === 'repeatWindowHours' && v !== '') v = Number(v);
+  if (same(v, baseOf(k))) delete pending[k]; else pending[k] = v;
+  renderSaveBar();
+  renderNavDots();
+}
+const pendingKeys = () => Object.keys(pending);
+const editorDirty = () => editor && !same(editor.draft, editor.original);
+
+// ============================================================================
+// tracker state, including a proper "starting" phase
+// ============================================================================
+function tracker() {
+  const s = S.status;
+  const up = s?.running;
+  if (busy === 'stopping') return { label: 'Stopping…', cls: 'warn', spin: true, key: 'stopping' };
+  if (busy === 'restarting') return { label: 'Restarting…', cls: 'warn', spin: true, key: 'starting' };
+  if (up && s.state === 'listening') return { label: 'Listening', cls: 'ok', key: 'listening' };
+  if (up && s.state === 'waiting for QR scan') return { label: 'Link WhatsApp', cls: 'warn', key: 'qr' };
+  if (up) return { label: s.state === 'linking' ? 'Linking…' : 'Starting…', cls: 'warn', spin: true, key: 'starting' };
+  if (busy === 'starting') return { label: 'Starting…', cls: 'warn', spin: true, key: 'starting' };
+  if (s?.state === 'needs login') return { label: 'Needs login', cls: 'bad', key: 'login' };
+  if (s?.state === 'disconnected') return { label: 'Disconnected', cls: 'bad', key: 'down' };
+  return { label: 'Not running', cls: '', key: 'off' };
+}
+
+async function control(action) {
+  busy = action === 'start' ? 'starting' : action === 'stop' ? 'stopping' : 'restarting';
+  busySince = Date.now();
+  renderChrome();
+  try {
+    const r = await api('POST', '/api/tracker', { action });
+    if (r.message && !['started', 'stopped'].includes(r.message)) toast(r.message);
+  } catch (e) {
+    busy = null; renderChrome(); throw e;
+  }
+  pollUntilSettled();
+}
+
+let polling = false;
+async function pollUntilSettled() {
+  if (polling) return;
+  polling = true;
+  try {
+    while (busy) {
+      await new Promise((r) => setTimeout(r, 1000));
+      await refresh();
+      const up = S.status?.running;
+      const state = S.status?.state;
+      const waited = Date.now() - busySince;
+      const starting = busy === 'starting' || busy === 'restarting';
+      if (busy === 'stopping' && !up) busy = null;
+      else if (starting && up && waited > 1500 && ['listening', 'waiting for QR scan', 'needs login'].includes(state)) busy = null;
+      else if (starting && !up && waited > 5000 && ['needs login', 'disconnected'].includes(state)) {
+        busy = null;
+        toast(state === 'needs login' ? 'WhatsApp needs to be linked again.' : 'It stopped right after starting. See Advanced → Log.', { err: true });
+      } else if (starting && !up && waited > 25000) {
+        busy = null;
+        toast('It did not start. Open Advanced → Log to see why.', { err: true });
+      } else if (waited > 90000) busy = null;
+      renderChrome();
+      if (tab === 'overview' && !editor) renderPage();
+    }
+  } finally { polling = false; renderChrome(); }
+}
+
+// ============================================================================
+// chrome: sidebar, header, save bar
+// ============================================================================
+function renderNavDots() {
+  document.querySelectorAll('#nav button[data-tab]').forEach((b) => {
+    const keys = TAB_KEYS[b.dataset.tab];
+    const has = keys && pendingKeys().some((k) => keys.includes(k));
+    let dot = b.querySelector('.dot');
+    if (has && !dot) b.append(h('span', { class: 'dot', title: 'Unsaved changes' }));
+    if (!has && dot) dot.remove();
+  });
+}
+
+function renderChrome() {
+  document.getElementById('nav').replaceChildren(...TABS.map(([id, label, ic]) => h('button', {
+    class: tab === id ? 'on' : '', 'data-tab': id, 'aria-current': tab === id ? 'page' : null, onclick: () => go(id),
+  }, icon(ic), h('span', { class: 'label' }, label), id === 'rules' && S ? h('span', { class: 'count' }, String(S.rules.length)) : null)));
+  renderNavDots();
+
+  const meta = TABS.find((t) => t[0] === tab);
+  document.getElementById('title').textContent = editor ? (editor.index < 0 ? 'New rule' : 'Edit rule') : meta[1];
+  document.getElementById('subtitle').textContent = editor ? 'Say which chats and messages should notify you' : meta[3];
+
+  const tools = document.getElementById('tools');
+  if (!S) { tools.replaceChildren(); return; }
+  const t = tracker();
+  const up = S.status?.running;
+  const ctl = [];
+  if (busy) ctl.push(h('button', { class: 'btn busy', disabled: true }, spinner(), t.label));
+  else if (!up) ctl.push(h('button', { class: 'btn primary', disabled: !S.configExists, onclick: guard(() => control('start')) }, icon('play', 15), 'Start'));
+  else ctl.push(h('button', { class: 'btn', onclick: guard(() => control('restart')) }, icon('refresh', 15), 'Restart'),
+    h('button', { class: 'btn', onclick: guard(() => control('stop')) }, icon('stop', 15), 'Stop'));
+  tools.replaceChildren(h('span', { class: 'pill ' + t.cls }, t.spin ? spinner() : h('span', { class: 'd' }), t.label), ...ctl);
+  document.getElementById('foot').textContent = S.platform === 'win32' ? 'Windows' : S.platform === 'darwin' ? 'macOS' : 'Linux';
+  renderSaveBar();
+}
+
+function renderSaveBar() {
+  const bar = document.getElementById('savebar');
+  if (editor) { updateEditorBar(); return; }
+  if (!S || !pendingKeys().length) { bar.hidden = true; bar.replaceChildren(); return; }
+  const n = pendingKeys().length;
+  bar.hidden = false;
+  bar.replaceChildren(h('div', null,
+    h('span', { class: 'msg' }, `${n} unsaved change${n > 1 ? 's' : ''}`),
+    h('button', { class: 'btn ghost', onclick: () => { pending = {}; renderChrome(); renderPage(); } }, 'Discard'),
+    h('button', { id: 'savebtn', class: 'btn primary', onclick: guard(savePending) }, 'Save changes')));
+}
+
+async function savePending() {
+  const btn = document.getElementById('savebtn');
+  if (btn) { btn.disabled = true; btn.replaceChildren(spinner(), 'Saving…'); }
+  const wasRunning = S.status?.running;
+  const configKeys = ['notifications', 'ntfyServer', 'repeatWindowHours', 'browser'].filter((k) => k in pending);
+  const needsRestart = wasRunning && (configKeys.some((k) => k !== 'repeatWindowHours') || 'ntfyTopic' in pending);
+  const wantLogin = 'runAtLogin' in pending ? pending.runAtLogin : null;
+  try {
+    if (val('notifications')?.includes('ntfy') && !String(val('ntfyTopic') ?? '').trim()) throw new Error('Phone alerts need a topic. Generate one under Notifications first.');
+    if ('ntfyTopic' in pending) await api('PUT', '/api/ntfy/topic', { topic: String(pending.ntfyTopic).trim() });
+    if (configKeys.length) S = await api('PUT', '/api/config', Object.fromEntries(configKeys.map((k) => [k, pending[k]])));
+    if (wantLogin !== null) {
+      if (wantLogin) { busy = 'starting'; busySince = Date.now(); renderChrome(); }
+      const r = await api('POST', '/api/run-at-login', { enabled: wantLogin });
+      toast(r.message.split('\n')[0] || 'Done');
+    }
+  } catch (e) {
+    busy = null; renderSaveBar(); throw e;
+  } finally { await refresh().catch(() => {}); ntfyInfo = await api('GET', '/api/ntfy').catch(() => ntfyInfo); }
+  pending = {};
+  renderChrome(); renderPage();
+  if (wantLogin) pollUntilSettled();
+  if (needsRestart && wantLogin === null) toast('Saved. Restart the tracker to apply.', { action: { label: 'Restart now', fn: guard(() => control('restart')) } });
+  else if (wantLogin === null) toast('Saved');
+}
+
+async function go(next) {
+  if (editorDirty() && !(await ask({ title: 'Discard this rule?', body: 'You have unsaved changes to this rule.', ok: 'Discard', danger: true }))) return;
+  editor = null; tab = next;
+  renderChrome(); renderPage();
+}
+
+// ============================================================================
+// page: overview
+// ============================================================================
+async function pageOverview(root) {
+  const s = S.status;
+  const t = tracker();
+  if (!S.configExists) {
+    root.append(h('div', { class: 'card' }, h('div', { class: 'empty' },
+      h('b', null, 'Welcome to whatsgrep'), 'It watches your WhatsApp chats and notifies you when a message matches your rules.',
+      h('div', { class: 'row-actions', style: 'justify-content:center;margin-top:18px' },
+        h('button', { class: 'btn primary', onclick: guard(async () => { S = await api('POST', '/api/config/init'); renderChrome(); renderPage(); }) }, 'Create my config')))));
+    return;
+  }
+  if (S.configError) root.append(h('div', { class: 'alert bad' }, icon('alert'), h('div', null, h('b', null, 'The config file has a problem'), h('span', null, S.configError + ' Fix it in Advanced.'))));
+  if (!S.browserFound) root.append(h('div', { class: 'alert' }, icon('alert'), h('div', null, h('b', null, 'No browser found'), h('span', null, 'whatsgrep needs Chrome, Chromium, Edge or Brave installed. You can also set a path in Settings.'))));
+
+  if (s?.running && s.qr) {
+    const img = h('img', { class: 'qr', alt: 'WhatsApp login QR code', width: 220, height: 220 });
+    root.append(h('div', { class: 'card' }, h('div', { class: 'linkcard' }, img,
+      h('div', { style: 'flex:1;min-width:240px' }, h('h2', null, 'Link your WhatsApp'),
+        h('ol', { class: 'how' }, h('li', null, 'Open WhatsApp on your phone'), h('li', null, 'Go to Settings → Linked devices'), h('li', null, 'Tap “Link a device” and scan this code')),
+        h('p', { class: 'hint' }, 'The code refreshes about every 20 seconds.')))));
+    fetch('/api/qr.svg', { headers: { 'x-token': token } }).then((r) => (r.ok ? r.text() : null)).then((svg) => { if (svg) img.src = 'data:image/svg+xml;base64,' + btoa(svg); }).catch(() => {});
+  }
+
+  const stat = (label, value, small) => h('div', { class: 'stat' }, h('span', null, label), h('b', null, value), small && h('small', null, small));
+  root.append(h('div', { class: 'stats' },
+    stat('Status', t.label, s?.running ? `pid ${s.pid}` : 'tracker process'),
+    stat('Matches this run', String(s?.matches ?? 0), s?.lastMatch ? 'last ' + ago(s.lastMatch) : 'none yet'),
+    stat('Rules', String(S.rules.length), 'watching your chats'),
+    stat('Sending to', (S.config?.notifications ?? []).map((m) => (m === 'ntfy' ? 'Phone' : 'Desktop')).join(' + ') || 'nowhere', 'see Notifications')));
+
+  const steps = [
+    [t.key === 'listening', 'Link WhatsApp', 'Press Start, then scan the code', null],
+    [S.rules.length > 0, 'Add a rule', 'Say what you want to hear about', 'rules'],
+    [(S.config?.notifications ?? []).length > 0, 'Choose where alerts go', 'Desktop, phone, or both', 'notifications'],
+    [S.runAtLogin, 'Start with your computer', 'So it is always on', 'settings'],
+  ];
+  if (steps.some((x) => !x[0])) {
+    root.append(h('div', { class: 'card' }, h('div', { class: 'head', style: 'padding-bottom:12px' }, h('h2', null, 'Getting started'), h('p', { class: 'desc' }, `${steps.filter((x) => x[0]).length} of ${steps.length} done`)),
+      h('ul', { class: 'steps' }, steps.map(([done, title, sub, to]) => h('li', { class: done ? 'done' : '' },
+        h('span', { class: 'tick' }, done ? icon('check') : null), h('div', { class: 't' }, h('div', null, title), !done && h('div', { class: 'hint' }, sub)),
+        !done && to && h('button', { class: 'btn sm', onclick: () => go(to) }, 'Open'))))));
+  }
+
+  const recent = s?.recent ?? [];
+  root.append(h('div', { class: 'card' }, h('div', { class: 'head', style: 'padding-bottom:12px' }, h('h2', null, 'Recent matches'), h('p', { class: 'desc' }, 'Messages that triggered a notification during this run')),
+    recent.length
+      ? h('div', null, recent.map((m) => h('div', { class: 'match' }, h('span', { class: 'when' }, ago(m.t)), h('span', { class: 'who' }, m.chat), h('span', { class: 'badge' }, m.rule), h('span', { class: 'txt' }, m.text))))
+      : h('div', { class: 'empty', style: 'padding:26px;border-top:1px solid var(--line)' }, 'Nothing yet. Matches show up here as they happen.')));
+}
+
+// ============================================================================
+// page: rules (list)
+// ============================================================================
+const emptySection = () => ({ any: [], all: [], exclude: [] });
+const newRule = () => ({ name: '', priority: 'default', from: emptySection(), message: emptySection() });
+const w = (v) => ({ kind: 'exact', value: v });
+const TEMPLATES = [
+  { title: 'Keyword alert', sub: 'Any chat mentioning certain words', make: () => ({ name: 'Keyword alert', priority: 'default', from: emptySection(), message: { any: [w('urgent')], all: [], exclude: [] } }) },
+  { title: 'Things for sale', sub: 'Sale posts only, skipping people asking to buy', make: () => ({ name: 'For sale', priority: 'high', from: emptySection(), message: { any: [], all: [[w('sell'), w('selling'), w('for sale')]], exclude: [w('buy'), w('wtb'), w('wanted')] } }) },
+  { title: 'One chat only', sub: 'Everything said in a single group or contact', onlyChats: true, make: () => ({ name: 'One chat', priority: 'low', from: emptySection(), message: emptySection() }) },
+];
+
+const vals = (list, max = 4) => {
+  const v = list.map((e) => e.value);
+  return v.length > max ? [...v.slice(0, max), `+${v.length - max} more`] : v;
+};
+function describe(rule) {
+  const f = rule.from, m = rule.message;
+  const row = (dt, dd) => [h('dt', null, dt), h('dd', null, dd)];
+  const rows = [];
+  const chatList = [...f.any, ...f.all.flat()];
+  rows.push(row('Chats', chatList.length ? h('b', null, vals(chatList, 3).join(', ')) : h('i', null, 'Every chat')));
+  if (f.exclude.length) rows.push(row('Skips chats', vals(f.exclude, 3).join(', ')));
+  const looks = [];
+  if (m.any.length) looks.push(h('b', null, vals(m.any).join(', ')));
+  m.all.forEach((g) => looks.push(h('span', null, looks.length ? ' + one of ' : 'one of ', h('b', null, vals(g, 3).join(', ')))));
+  rows.push(row('Looks for', looks.length ? looks : h('i', null, 'any message')));
+  if (m.exclude.length) rows.push(row('Ignores', vals(m.exclude, 4).join(', ')));
+  return h('dl', { class: 'facts' }, rows);
+}
+
+let ruleFilter = '';
+function pageRules(root) {
+  const holder = h('div');
+  root.append(h('div', { class: 'toolbar' },
+    h('div', { class: 'search' }, icon('search'), h('input', { type: 'text', placeholder: 'Search rules', 'aria-label': 'Search rules', value: ruleFilter, oninput: (e) => { ruleFilter = e.target.value; drawList(); } })),
+    h('span', { style: 'flex:1' }),
+    h('button', { class: 'btn primary', onclick: () => openEditor(-1, newRule()) }, icon('plus', 15), 'Add rule')), holder);
+  function drawList() {
+    const q = ruleFilter.trim().toLowerCase();
+    const shown = S.rules.map((r, i) => [r, i]).filter(([r]) => !q || r.name.toLowerCase().includes(q));
+    if (!S.rules.length) {
+      holder.replaceChildren(h('div', { class: 'card' }, h('div', { class: 'empty' }, h('b', null, 'No rules yet'), 'A rule says which chats to watch and what words to look for. Start from an idea:',
+        h('div', { class: 'tpl' }, TEMPLATES.map((t) => h('button', { onclick: () => openEditor(-1, t.make(), t.onlyChats) }, h('b', null, t.title), h('span', null, t.sub)))))));
+      return;
+    }
+    holder.replaceChildren(h('div', { class: 'card' }, shown.length ? shown.map(([r, i]) => h('div', { class: 'rule' },
+      h('div', { class: 'info' }, h('h3', null, r.name, h('span', { class: 'badge p-' + r.priority }, (PRIORITIES.find((p) => p[0] === r.priority) ?? ['', r.priority])[1])), describe(r)),
+      h('div', { class: 'acts' },
+        h('button', { class: 'btn sm', onclick: () => openEditor(i, clone(r)) }, icon('edit', 15), 'Edit'),
+        h('button', { class: 'btn ghost icon', title: 'Duplicate', 'aria-label': 'Duplicate ' + r.name, onclick: () => { const c = clone(r); c.name += ' copy'; openEditor(-1, c); } }, icon('copy', 16)),
+        h('button', { class: 'btn ghost icon', title: 'Delete', 'aria-label': 'Delete ' + r.name, onclick: guard(async () => {
+          if (!(await ask({ title: `Delete “${r.name}”?`, body: 'This removes the rule from your config.', ok: 'Delete', danger: true }))) return;
+          S = await api('PUT', '/api/config', { rules: S.rules.filter((_, j) => j !== i) });
+          toast('Rule deleted'); renderChrome(); renderPage();
+        }) }, icon('trash', 16)))))
+      : h('div', { class: 'empty' }, 'No rules match “' + ruleFilter + '”.')));
+  }
+  drawList();
+}
+
+function openEditor(index, draft, onlyChats) {
+  editor = { index, draft, original: clone(draft), test: { chat: '', text: '' }, ui: { onlyChats: !!onlyChats || draft.from.any.length > 0 || draft.from.all.length > 0 } };
+  renderChrome(); renderPage();
+  window.scrollTo(0, 0);
+}
+
+// ============================================================================
+// page: rule editor
+// ============================================================================
+const TAG = { contains: 'part', re: 'regex', phone: 'tel', exact: '' };
+
+function chipInput(list, { isChat, placeholder, onChange }) {
+  const kinds = isChat
+    ? [['exact', 'Exact name / ID'], ['contains', 'Part of name'], ['re', 'Regex pattern'], ['phone', 'Phone number']]
+    : [['exact', 'Whole word'], ['contains', 'Part of a word'], ['re', 'Regex pattern']];
+  let kind = 'exact';
+  const box = h('div', { class: 'chipbox' });
+  const inp = h('input', { type: 'text', placeholder, 'aria-label': placeholder, autocomplete: 'off', spellcheck: 'false' });
+  const sel = h('select', { class: 'kindsel', 'aria-label': 'How to match', onchange: (e) => { kind = e.target.value; } }, kinds.map(([v, l]) => h('option', { value: v }, l)));
+  function draw() {
+    box.replaceChildren(...list.map((e, i) => h('span', { class: 'chip k-' + e.kind }, TAG[e.kind] && h('em', null, TAG[e.kind]), h('span', { class: 'v' }, e.value),
+      h('button', { type: 'button', 'aria-label': 'Remove ' + e.value, onclick: (ev) => { ev.stopPropagation(); list.splice(i, 1); draw(); onChange(); } }, '×'))), inp);
+  }
+  function commit() {
+    const raw = inp.value;
+    if (!raw.trim()) return;
+    const parts = kind === 're' ? [raw] : raw.split(',');
+    let added = false;
+    for (const p of parts.map((x) => x.trim()).filter(Boolean)) {
+      if (!list.some((e) => e.kind === kind && e.value === p)) { list.push({ kind, value: p }); added = true; }
+    }
+    inp.value = '';
+    draw();
+    if (added) onChange();
+  }
+  inp.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); commit(); }
+    else if (e.key === 'Backspace' && !inp.value && list.length) { list.pop(); draw(); onChange(); }
+  });
+  inp.addEventListener('input', () => { if (kind !== 're' && inp.value.includes(',')) commit(); });
+  inp.addEventListener('blur', commit);
+  box.addEventListener('click', () => inp.focus());
+  draw();
+  return h('div', { class: 'chipinput' }, box, sel);
+}
+
+const fieldLabel = (text, small) => h('label', { class: 'lbl' }, text, small && [' ', h('small', null, small)]);
+
+// Extra conditions only appear once used, or when asked for, to keep the form calm.
+function sectionEditor(sec, isChat, ui, key, touch, rerender) {
+  const out = [];
+  if (!isChat) {
+    out.push(h('div', null, fieldLabel('Notify when the message has any of these', 'Enter adds one, commas add several'),
+      chipInput(sec.any, { isChat, placeholder: 'e.g. laptop, bike, free pickup', onChange: touch })));
+  }
+  sec.all.forEach((g, gi) => out.push(h('div', { class: 'sub-block' },
+    h('div', { class: 'top' }, h('b', null, isChat ? 'Chat must also be one of' : (gi === 0 && !sec.any.length ? 'The message must have one of' : 'And also one of')), h('button', { class: 'btn ghost sm', onclick: () => { sec.all.splice(gi, 1); touch(); rerender(); } }, icon('x', 14), 'Remove')),
+    chipInput(g, { isChat, placeholder: 'any one of these is enough', onChange: touch }))));
+  const showEx = sec.exclude.length || ui[key + 'Ex'];
+  if (showEx) {
+    out.push(h('div', { class: 'sub-block ignore' },
+      h('div', { class: 'top' }, h('b', null, isChat ? 'Skip these chats' : 'Ignore the message if it has any of these'),
+        h('button', { class: 'btn ghost sm', onclick: () => { sec.exclude.length = 0; ui[key + 'Ex'] = false; touch(); rerender(); } }, icon('x', 14), 'Remove')),
+      chipInput(sec.exclude, { isChat, placeholder: isChat ? 'chats to skip' : 'e.g. buy, wtb, wanted', onChange: touch })));
+  }
+  const links = [];
+  if (!isChat) links.push(h('button', { class: 'btn sm', onclick: () => { sec.all.push([]); rerender(); } }, icon('plus', 14), 'Also require another word'));
+  if (!showEx) links.push(h('button', { class: 'btn sm', onclick: () => { ui[key + 'Ex'] = true; rerender(); } }, icon('plus', 14), isChat ? 'Skip some chats' : 'Ignore some messages'));
+  if (links.length) out.push(h('div', { class: 'addlinks' }, links));
+  return out;
+}
+
+function validity(d) {
+  if (!d.name.trim()) return 'Give the rule a name';
+  const has = (s) => s.any.length || s.all.some((g) => g.length);
+  if (!has(d.message) && !has(d.from)) return 'Add at least one chat or word to look for';
+  return null;
+}
+
+let drawSummary = () => {};
+function summarize(d) {
+  const list = (l, max = 6) => { const v = l.map((e) => e.value); return v.length > max ? v.slice(0, max).join(', ') + ` +${v.length - max} more` : v.join(', '); };
+  const b = (t) => h('b', null, t);
+  const rows = [];
+  const chats = d.from.any;
+  rows.push(['Listens to', chats.length ? b(list(chats, 4)) : b('every chat')]);
+  if (d.from.exclude.length) rows.push(['Except chats', b(list(d.from.exclude, 4))]);
+  const m = d.message;
+  const groups = m.all.filter((g) => g.length);
+  if (m.any.length) rows.push(['Message has', ['any of ', b(list(m.any))]]);
+  groups.forEach((g, i) => rows.push([m.any.length || i ? 'and also' : 'Message has', ['one of ', b(list(g))]]));
+  if (!m.any.length && !groups.length) rows.push(['Message has', 'anything']);
+  if (m.exclude.length) rows.push(['Ignored if it has', b(list(m.exclude))]);
+  rows.push(['Loudness', b((PRIORITIES.find((p) => p[0] === d.priority) ?? ['', d.priority])[1])]);
+  return h('dl', { class: 'facts plain' }, rows.map(([k, v]) => [h('dt', null, k), h('dd', null, v)]));
+}
+
+let testTimer;
+function pageEditor(root) {
+  const E = editor;
+  const d = E.draft;
+  const touch = () => { updateEditorBar(); runTest(); drawSummary(); };
+  const rerender = () => renderPage();
+
+  const resultBox = h('div');
+  function runTest() {
+    clearTimeout(testTimer);
+    testTimer = setTimeout(async () => {
+      const t = E.test;
+      if (!t.text.trim() && !t.chat.trim()) {
+        resultBox.replaceChildren(h('div', { class: 'verdict' }, h('span', { class: 'big' }, icon('search', 18)), h('div', null, h('b', null, 'Try a message'), h('small', null, 'Type a sample chat name and message to see if this rule would fire. Nothing is sent.'))));
+        return;
+      }
+      try {
+        const r = await api('POST', '/api/rule/test', { rule: d, chat: t.chat, text: t.text });
+        if (r.usable === false) { resultBox.replaceChildren(h('div', { class: 'verdict' }, h('span', { class: 'big' }, icon('alert', 18)), h('div', null, h('b', null, 'Not ready yet'), h('small', null, 'Add a chat or a word first.')))); return; }
+        const line = (ok, yes, no) => h('li', null, h('span', { class: ok ? 'ok' : 'no' }, icon(ok ? 'check' : 'x', 16)), ok ? yes : no);
+        resultBox.replaceChildren(
+          h('div', { class: 'verdict ' + (r.matched ? 'yes' : 'no') }, h('span', { class: 'big' }, icon(r.matched ? 'check' : 'x', 18)), h('div', null, h('b', null, r.matched ? 'Would notify you' : 'Would not notify'), h('small', null, r.matched ? 'Both the chat and the text match.' : 'See which part did not match below.'))),
+          h('ul', { class: 'checks' }, line(r.chat, 'The chat matches', 'The chat does not match'), line(r.message, 'The text matches', 'The text does not match')));
+      } catch (e) { resultBox.replaceChildren(h('div', { class: 'hint' }, e.message)); }
+    }, 220);
+  }
+
+  const chatsOnly = E.ui.onlyChats;
+  const step = (n, title, desc) => h('div', { class: 'head stephead' }, h('span', { class: 'stepnum' }, String(n)), h('div', null, h('h2', null, title), h('p', { class: 'desc' }, desc)));
+
+  const nameCard = h('div', { class: 'card' }, step(1, 'Name and loudness', 'A name you will recognise, and how strongly phone alerts should buzz'),
+    h('div', { class: 'body' },
+      h('div', { class: 'namefield' }, fieldLabel('Rule name'), h('input', { type: 'text', value: d.name, placeholder: 'e.g. Mess coupons for sale', oninput: (e) => { d.name = e.target.value; touch(); } })),
+      h('div', { class: 'prio' }, fieldLabel('Alert priority'),
+        h('div', { class: 'seg', role: 'radiogroup' }, PRIORITIES.map(([v, l]) => h('label', null, h('input', { type: 'radio', name: 'prio', checked: d.priority === v, onchange: () => { d.priority = v; touch(); } }), h('span', null, l)))))));
+
+  const chatCard = h('div', { class: 'card' }, step(2, 'Where to listen', 'Which groups or contacts this rule applies to'),
+    h('div', { class: 'body' },
+      h('div', { class: 'seg', role: 'radiogroup', 'aria-label': 'Which chats' },
+        ...[[false, 'Every chat'], [true, 'Only certain chats']].map(([v, label]) => h('label', null,
+          h('input', { type: 'radio', name: 'chatmode', checked: chatsOnly === v, onchange: guard(async () => {
+            if (!v && (d.from.any.length || d.from.all.length) && !(await ask({ title: 'Listen to every chat?', body: 'This clears the list of chats you picked.', ok: 'Clear list', danger: true }))) { rerender(); return; }
+            E.ui.onlyChats = v;
+            if (!v) { d.from.any = []; d.from.all = []; }
+            touch(); rerender();
+          }) }), h('span', null, label)))),
+      chatsOnly && h('div', null, fieldLabel('Chats to listen to', 'a name, a phone number, or part of a name'),
+        chipInput(d.from.any, { isChat: true, placeholder: 'e.g. Mess Coupons, 919876543210', onChange: touch })),
+      sectionEditor(d.from, true, E.ui, 'f', touch, rerender)));
+
+  const msgCard = h('div', { class: 'card' }, step(3, 'What to look for', 'Words the message must (or must not) contain. Capital letters do not matter.'),
+    h('div', { class: 'body' }, sectionEditor(d.message, false, E.ui, 'm', touch, rerender)));
+
+  const sumBox = h('div');
+  drawSummary = () => sumBox.replaceChildren(summarize(d));
+  drawSummary();
+  const plainCard = h('div', { class: 'card' }, h('div', { class: 'head' }, h('h2', null, 'In plain words'), h('p', { class: 'desc' }, 'What this rule will do')), h('div', { class: 'body' }, sumBox));
+
+  const tryCard = h('div', { class: 'card' }, h('div', { class: 'head' }, h('h2', null, 'Try it'), h('p', { class: 'desc' }, 'Test with a sample message. Nothing is sent.')),
+    h('div', { class: 'body', style: 'display:flex;flex-direction:column;gap:12px' },
+      h('div', null, fieldLabel('Chat name'), h('input', { type: 'text', placeholder: 'e.g. Mess Coupons', value: E.test.chat, oninput: (e) => { E.test.chat = e.target.value; runTest(); } })),
+      h('div', null, fieldLabel('Message'), h('input', { type: 'text', placeholder: 'e.g. selling lunch coupon', value: E.test.text, oninput: (e) => { E.test.text = e.target.value; runTest(); } })),
+      resultBox));
+
+  root.append(
+    h('div', { class: 'crumbs' }, h('button', { onclick: () => go('rules') }, icon('left', 15), 'Rules'), '/', h('span', null, d.name || 'New rule')),
+    h('div', { class: 'editor' }, h('div', null, nameCard, chatCard, msgCard), h('div', { class: 'side' }, plainCard, tryCard)));
+  runTest();
+  updateEditorBar();
+}
+
+async function saveRule() {
+  const E = editor;
+  const rules = clone(S.rules);
+  if (E.index < 0) rules.push(E.draft); else rules[E.index] = E.draft;
+  S = await api('PUT', '/api/config', { rules });
+  editor = null;
+  toast('Rule saved. A running tracker uses it right away.');
+  renderChrome(); renderPage();
+}
+
+function updateEditorBar() {
+  const bar = document.getElementById('savebar');
+  if (!editor) return;
+  const why = validity(editor.draft);
+  const dirty = editorDirty();
+  bar.hidden = false;
+  bar.replaceChildren(h('div', null,
+    h('span', { class: 'msg' + (!dirty && !why ? ' ok' : '') }, why ?? (dirty ? 'Unsaved changes' : 'No changes')),
+    h('button', { class: 'btn ghost', onclick: () => go('rules') }, 'Cancel'),
+    h('button', { class: 'btn primary', disabled: !!why || !dirty, onclick: guard(saveRule) }, 'Save rule')));
+}
+
+// ============================================================================
+// page: notifications
+// ============================================================================
+const sw = (checked, onchange, label) => h('label', { class: 'switch' }, h('input', { type: 'checkbox', checked, onchange, 'aria-label': label }), h('span'));
+const needConfig = () => h('div', { class: 'card' }, h('div', { class: 'empty' }, h('b', null, 'No config yet'), h('button', { class: 'btn primary', style: 'margin-top:12px', onclick: () => go('overview') }, 'Set one up')));
+
+async function pageNotifications(root) {
+  if (!S.config) { root.append(needConfig()); return; }
+  ntfyInfo = await api('GET', '/api/ntfy').catch(() => ntfyInfo);
+  const methods = val('notifications');
+  const on = (m) => methods.includes(m);
+  const topic = String(val('ntfyTopic') ?? '');
+  const server = String(val('ntfyServer') ?? '');
+  const toggle = (m) => (e) => {
+    const set = new Set(val('notifications'));
+    e.target.checked ? set.add(m) : set.delete(m);
+    stage('notifications', ['desktop', 'ntfy'].filter((x) => set.has(x)));
+    renderPage();
+  };
+  // Tests use what is saved, so they need the method on and the related edits saved.
+  const testBtn = (m, ok, why, run) => h('button', { class: 'btn sm', disabled: !ok, title: ok ? '' : why, onclick: guard(run) }, 'Send test');
+  const unsavedPhone = 'ntfyTopic' in pending || 'ntfyServer' in pending || 'notifications' in pending;
+  const phoneOk = on('ntfy') && !!ntfyInfo?.topic && !unsavedPhone;
+  const phoneWhy = !on('ntfy') ? 'Turn phone alerts on first' : !ntfyInfo?.topic ? 'Generate a topic and save first' : 'Save your changes first';
+
+  root.append(h('div', { class: 'card' },
+    h('div', { class: 'setting' + ('notifications' in pending ? ' changed' : '') }, h('div', { class: 'what' }, h('b', null, 'Desktop notifications'), h('div', { class: 'hint' }, 'A pop-up on this computer. Works while you are logged in.')),
+      h('div', { class: 'ctl' }, testBtn('desktop', on('desktop') && !('notifications' in pending), on('desktop') ? 'Save your changes first' : 'Turn desktop notifications on first', async () => { await api('POST', '/api/notify/test', { method: 'desktop' }); toast('Sent. Did a notification appear?'); }), sw(on('desktop'), toggle('desktop'), 'Desktop notifications'))),
+    h('div', { class: 'setting' + ('notifications' in pending ? ' changed' : '') }, h('div', { class: 'what' }, h('b', null, 'Phone (ntfy)'), h('div', { class: 'hint' }, 'Free push alerts through the ntfy app on Android or iPhone. Needs a private topic, set up below.')),
+      h('div', { class: 'ctl' }, testBtn('ntfy', phoneOk, phoneWhy, async () => { await api('POST', '/api/notify/test', { method: 'ntfy' }); toast('Sent to your ntfy topic'); }), sw(on('ntfy'), toggle('ntfy'), 'Phone notifications')))));
+
+  const card = h('div', { class: 'card' }, h('div', { class: 'head', style: 'padding-bottom:14px' }, h('h2', null, 'Phone setup'),
+    h('p', { class: 'desc' }, on('ntfy') ? 'Alerts are published to one topic. Subscribe to it once in the ntfy app.' : 'Turn on Phone (ntfy) above to set this up.')));
+  if (!on('ntfy')) { card.classList.add('off'); root.append(card); return; }
+
+  const gen = guard(async () => {
+    if (topic.trim() && !(await ask({ title: 'Generate a new topic?', body: 'Your phone will stop getting alerts until you subscribe to the new topic in the ntfy app. The old one stops working once you save.', ok: 'Generate new topic', danger: true }))) return;
+    stage('ntfyTopic', (await api('POST', '/api/ntfy/generate')).topic);
+    renderPage();
+  });
+  const topicInput = h('input', { type: 'text', class: 'mono', value: topic, placeholder: 'Click “Generate” for a strong private topic', spellcheck: 'false', autocomplete: 'off', 'aria-label': 'ntfy topic',
+    oninput: (e) => stage('ntfyTopic', e.target.value), onchange: () => renderPage() });
+  const topicOk = /^[A-Za-z0-9_-]{8,64}$/.test(topic.trim());
+  const weak = topicOk && topic.trim().length < 20;
+  card.append(
+    h('div', { class: 'setting' + ('ntfyTopic' in pending ? ' changed' : ''), style: 'border-top:1px solid var(--line);align-items:flex-start;flex-direction:column;gap:10px' },
+      h('div', { class: 'what', style: 'width:100%' }, h('b', null, 'Topic (the ID alerts are sent to)'), h('div', { class: 'hint' }, 'Anyone who knows this can read your alerts, so use the generated one: it is random and impossible to guess.')),
+      h('div', { class: 'row-actions', style: 'width:100%' },
+        h('div', { style: 'flex:1;min-width:240px' }, topicInput),
+        h('button', { class: 'btn', onclick: gen }, icon('refresh', 15), topic.trim() ? 'Regenerate' : 'Generate'),
+        h('button', { class: 'btn', disabled: !topic.trim(), onclick: guard(async () => { await navigator.clipboard.writeText(topic.trim()); toast('Topic copied'); }) }, icon('copy', 15), 'Copy')),
+      topic.trim() && !topicOk && h('div', { class: 'hint', style: 'color:var(--danger)' }, 'Use 8-64 letters, digits, - or _ (no spaces).'),
+      weak && h('div', { class: 'hint', style: 'color:var(--warn)' }, 'This is short and easier to guess. Generate one for a strong topic.')));
+
+  if (topic.trim() && topicOk) {
+    const q = await api('POST', '/api/ntfy/qr', { server, topic: topic.trim() }).catch(() => null);
+    if (q) {
+      card.append(h('div', { class: 'linkcard', style: 'border-top:1px solid var(--line)' },
+        h('img', { class: 'qr sm', alt: 'ntfy subscribe QR code', src: 'data:image/svg+xml;base64,' + btoa(q.svg) }),
+        h('div', { style: 'flex:1;min-width:240px' },
+          h('div', { class: 'lbl' }, 'Subscribe URL'),
+          h('div', { class: 'loc', style: 'padding-top:0' }, h('code', null, q.url), h('button', { class: 'btn ghost icon', title: 'Copy URL', 'aria-label': 'Copy subscribe URL', onclick: guard(async () => { await navigator.clipboard.writeText(q.url); toast('URL copied'); }) }, icon('copy', 16))),
+          h('ol', { class: 'how' }, h('li', null, 'Install the ntfy app on your phone'), h('li', null, 'Scan this code with your camera, or add the topic by hand')),
+          'ntfyTopic' in pending && h('p', { class: 'hint', style: 'color:var(--warn)' }, 'Not saved yet. Press Save changes to start using this topic.'))));
+    }
+  }
+  card.append(h('div', { class: 'setting' + ('ntfyServer' in pending ? ' changed' : ''), style: 'border-top:1px solid var(--line)' }, h('div', { class: 'what' }, h('b', null, 'ntfy server'), h('div', { class: 'hint' }, 'Leave as is unless you host your own.')),
+    h('div', { class: 'ctl' }, h('input', { type: 'text', value: server, 'aria-label': 'ntfy server', oninput: (e) => stage('ntfyServer', e.target.value), onchange: () => renderPage() }))));
+  root.append(card);
+}
+
+// ============================================================================
+// page: settings
+// ============================================================================
+function pageSettings(root) {
+  if (!S.config) { root.append(needConfig()); return; }
+  const chg = (k) => (k in pending ? ' changed' : '');
+  root.append(h('div', { class: 'card' },
+    h('div', { class: 'setting' + chg('runAtLogin') }, h('div', { class: 'what' }, h('b', null, 'Run at login'),
+      h('div', { class: 'hint' }, 'Starts whatsgrep in the background whenever you log in, and restarts it if it stops. Link WhatsApp first (Start, then scan the code).')),
+      h('div', { class: 'ctl' }, sw(val('runAtLogin'), (e) => { stage('runAtLogin', e.target.checked); renderPage(); }, 'Run at login'))),
+    h('div', { class: 'setting' + chg('repeatWindowHours') }, h('div', { class: 'what' }, h('b', null, 'Ignore repeats'),
+      h('div', { class: 'hint' }, 'The same text from the same sender only notifies once in this time. 0 turns it off.')),
+      h('div', { class: 'ctl' }, h('input', { type: 'number', min: 0, step: 'any', value: val('repeatWindowHours'), 'aria-label': 'Hours', oninput: (e) => stage('repeatWindowHours', e.target.value) }), h('span', { class: 'muted' }, 'hours'))),
+    h('div', { class: 'setting' + chg('browser') }, h('div', { class: 'what' }, h('b', null, 'Browser'),
+      h('div', { class: 'hint' }, S.browserFound ? ['Using ', h('code', null, S.browserFound), '. Set a path only to use a different one.'] : 'No Chrome, Chromium, Edge or Brave found. Install one, or give its path.')),
+      h('div', { class: 'ctl' }, h('input', { type: 'text', placeholder: 'Detect automatically', value: val('browser'), 'aria-label': 'Browser path', oninput: (e) => stage('browser', e.target.value) })))));
+
+  const copy = (text) => guard(async () => { await navigator.clipboard.writeText(text); toast('Copied'); });
+  root.append(h('div', { class: 'card' }, h('div', { class: 'head' }, h('h2', null, 'Where things are stored')),
+    h('div', { class: 'body' },
+      h('div', { class: 'loc' }, h('span', { class: 'k' }, 'Config file'), h('code', null, S.configFile), h('button', { class: 'btn ghost icon', title: 'Copy', 'aria-label': 'Copy config path', onclick: copy(S.configFile) }, icon('copy', 16))),
+      h('div', { class: 'loc' }, h('span', { class: 'k' }, 'Session and data'), h('code', null, S.dataDir), h('button', { class: 'btn ghost icon', title: 'Copy', 'aria-label': 'Copy data path', onclick: copy(S.dataDir) }, icon('copy', 16))),
+      h('div', { class: 'loc' }, h('span', { class: 'k' }, 'Secrets'), h('span', { class: 'muted' }, S.keychain)),
+      h('p', { class: 'hint', style: 'margin-top:8px' }, 'These are standard per-user folders, independent of any project. The session folder holds your linked WhatsApp login, so keep it private.'))));
+}
+
+// ============================================================================
+// page: advanced
+// ============================================================================
+async function pageAdvanced(root) {
+  const y = await api('GET', '/api/yaml');
+  const ta = h('textarea', { spellcheck: 'false', rows: 18, 'aria-label': 'Config file' }, y.text);
+  const log = await api('GET', '/api/log');
+  const logEl = h('pre', { class: 'log' }, log.text || 'The log appears here when the tracker was started from this page.');
+  root.append(
+    h('div', { class: 'card' }, h('div', { class: 'head' }, h('h2', null, 'Config file'), h('p', { class: 'desc' }, 'The same YAML file the other pages edit. A save that would break it is refused.')),
+      h('div', { class: 'body' }, ta, h('div', { class: 'row-actions', style: 'margin-top:12px' },
+        h('button', { class: 'btn primary', onclick: guard(async () => { S = await api('PUT', '/api/yaml', { text: ta.value }); toast('Config saved'); renderChrome(); }) }, 'Save file'),
+        h('button', { class: 'btn', onclick: guard(async () => { ta.value = (await api('GET', '/api/yaml')).text; toast('Reloaded from disk'); }) }, 'Reload from disk')))),
+    h('div', { class: 'card' }, h('div', { class: 'head' }, h('h2', null, 'Log')),
+      h('div', { class: 'body' }, logEl, h('div', { class: 'row-actions', style: 'margin-top:12px' },
+        h('button', { class: 'btn', onclick: guard(async () => { const l = await api('GET', '/api/log'); logEl.textContent = l.text || '(empty)'; logEl.scrollTop = logEl.scrollHeight; }) }, icon('refresh', 15), 'Refresh')))));
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+// ============================================================================
+// render
+// ============================================================================
+let renderId = 0;
+async function renderPage() {
+  const id = ++renderId;
+  const root = h('div');
+  try {
+    if (editor) pageEditor(root);
+    else if (tab === 'overview') await pageOverview(root);
+    else if (tab === 'rules') { if (!S.configExists) root.append(needConfig()); else pageRules(root); }
+    else if (tab === 'notifications') await pageNotifications(root);
+    else if (tab === 'settings') pageSettings(root);
+    else await pageAdvanced(root);
+  } catch (e) { root.append(h('div', { class: 'alert bad' }, icon('alert'), h('div', null, h('b', null, 'Something went wrong'), h('span', null, e.message)))); }
+  if (id !== renderId) return;
+  document.getElementById('content').replaceChildren(root);
+  renderSaveBar();
+}
+
+function applyTheme(t) {
+  if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme;
+  const dark = t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  document.getElementById('theme').replaceChildren(icon(dark ? 'sun' : 'moon'));
+}
+let theme = null;
+try { theme = localStorage.getItem('wg-theme'); } catch {}
+applyTheme(theme);
+document.getElementById('theme').addEventListener('click', () => {
+  const dark = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  theme = dark ? 'light' : 'dark';
+  try { localStorage.setItem('wg-theme', theme); } catch {}
+  applyTheme(theme);
+});
+document.getElementById('mark').append(icon('mark', 18));
+
+addEventListener('beforeunload', (e) => { if (pendingKeys().length || editorDirty()) { e.preventDefault(); e.returnValue = ''; } });
+addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault();
+    if (editor) { if (!validity(editor.draft) && editorDirty()) guard(saveRule)(); }
+    else if (pendingKeys().length) guard(savePending)();
+  }
+});
+
+(async () => {
+  try { await refresh(); } catch (e) {
+    document.getElementById('content').textContent = 'Could not reach whatsgrep: ' + e.message + '. Open the link printed by `whatsgrep ui` again.';
+    return;
+  }
+  renderChrome();
+  await renderPage();
+  // Keep status fresh. Never redraw a page while the user is editing something.
+  setInterval(async () => {
+    if (document.hidden || busy) return;
+    try {
+      const before = JSON.stringify(S.status);
+      await refresh();
+      if (JSON.stringify(S.status) !== before) { renderChrome(); if (tab === 'overview' && !editor) renderPage(); }
+    } catch {}
+  }, 2500);
+})();
+</script>
+</body>
+</html>

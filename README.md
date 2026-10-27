@@ -19,7 +19,7 @@ WhatsApp Web (headless Chromium)  ->  your rules  ->  desktop notification and/o
 
 1. **Load config.** `config.yaml` is read and validated. If it is missing or invalid, whatsgrep exits with an error. A valid config starts a file watcher so later edits reload live.
 2. **Topic.** The ntfy topic is resolved (see [The ntfy topic](#the-ntfy-topic)) and printed, with a subscribe QR code if it is new.
-3. **WhatsApp login.** A headless Chromium opens WhatsApp Web. The first time (or after the session expires) it shows a QR code to scan. Otherwise it restores the saved session from `.whatsgrep/`.
+3. **WhatsApp login.** A headless Chromium opens WhatsApp Web. The first time (or after the session expires) it shows a QR code to scan. Otherwise it restores the saved session from the data folder (see [Run it as a program](#run-it-as-a-program)).
 4. **Listening.** When it prints `Listening`, every new message that arrives is checked. Messages sent before this point, or while whatsgrep is not running, are never seen. whatsgrep does not read history.
 5. **Stop.** Ctrl+C closes the browser cleanly. The session stays saved.
 
@@ -61,11 +61,11 @@ One message can fire several rules, and you get one notification per rule.
 ```sh
 git clone https://github.com/ankit-ksh/whatsgrep.git && cd whatsgrep
 npm install
-cp config.example.yaml config.yaml    # then edit your chats and keywords
+npm start -- config init    # creates the config in your per-user folder, then edit it (or use `npm start -- ui`)
 npm start -- --dry-run --verbose      # first run: scan the QR, watch matches print
 ```
 
-1. **Link WhatsApp.** A QR code appears. In WhatsApp go to Settings > Linked devices > Link a device and scan it. The session is saved in `.whatsgrep/`, so later runs log in automatically.
+1. **Link WhatsApp.** A QR code appears. In WhatsApp go to Settings > Linked devices > Link a device and scan it. The session is saved in the data folder, so later runs log in automatically.
 2. **Subscribe on your phone.** whatsgrep prints a second, smaller QR for your ntfy topic. Scan it with your phone camera to open the ntfy app and subscribe. Or add the printed topic by hand: in the ntfy app tap **+**, paste the topic, keep the server as `ntfy.sh`.
 3. **Check your rules.** With `--dry-run` matches print in the terminal and nothing is sent. `--verbose` prints every incoming message with its chat name and id, so you can see what to put in `from:`.
 4. **Go live.** Stop with Ctrl+C and run `npm start`.
@@ -80,13 +80,14 @@ npm start -- [options]
 
 | Option | Meaning |
 |---|---|
-| `-c, --config <file>` | Rules file. Default `config.yaml` |
-| `-t, --topic <value>` | Use this ntfy topic and save it. `random` generates a new one |
+| `-c, --config <file>` | Rules file. Default `config.yaml` in the per-user config folder |
+| `-t, --topic <value>` | Use this ntfy topic. Default is a new random topic every run |
+| `-r, --resume` | Reuse the ntfy topic from the last run |
 | `-s, --server <url>` | ntfy server. Overrides `ntfy.server` in the config. Default `https://ntfy.sh` |
-| `-d, --data-dir <dir>` | Folder for the session and saved topic. Default `.whatsgrep` |
+| `-d, --data-dir <dir>` | Folder for the session and saved topic. Default: the per-user data folder |
 | `--dry-run` | Print matches, send no notifications |
 | `--verbose` | Print every incoming message with chat name, id, number and delay |
-| `--qr` | Print the phone-subscribe QR (also shown automatically when the topic is new) |
+| `--qr` | Print the phone-subscribe QR (shown automatically unless `--resume`) |
 | `--check <text>` or `check <text>` | Test your rules against some text, offline, and exit |
 | `-h, --help` | Show help |
 
@@ -98,11 +99,78 @@ The topic is the "room" your notifications go to. On public ntfy.sh anyone who k
 
 | Command | Result |
 |---|---|
-| `npm start` | First run generates a random topic and saves it. Later runs reuse it |
-| `npm start -- --topic my-long-secret` | Use this topic and overwrite the saved one |
-| `npm start -- --topic random` | Generate a new random topic and overwrite the saved one |
+| `npm start` | Generates a new random topic every run and shows the subscribe QR. The topic is saved as the "last" one |
+| `npm start -- --resume` | Reuse the topic from the last run (no new subscription needed) |
+| `npm start -- --topic my-long-secret` | Use this topic (and save it as the last one) |
 
 After changing the topic, subscribe to the new one in the ntfy app and delete the old subscription. You can self-host ntfy and point `--server` at it (use `http://` only on trusted networks).
+
+## Run it as a program
+
+whatsgrep can be built into one executable for Windows, macOS or Linux. It needs no Node.js on the target machine, only a Chrome, Chromium, Edge or Brave install (found automatically; override with `--browser <path>`, `browser:` in the config or `WHATSGREP_BROWSER`).
+
+```
+npm run build        # -> dist/whatsgrep  (dist/whatsgrep.exe on Windows)
+```
+
+Builds are per OS (no cross-compiling). The GitHub workflow in `.github/workflows/release.yml` builds all four on a version tag. Use the official Node.js binary from nodejs.org when building, since distro builds that link shared libraries will not run on other machines. The macOS/Windows builds are unsigned, so expect a Gatekeeper / SmartScreen warning on first launch.
+
+whatsgrep keeps its files in standard per-user folders, so it behaves the same wherever you start it (a terminal, a service, a shortcut) and depends on no project folder:
+
+| OS | Config | Session + state |
+|---|---|---|
+| Linux | `~/.config/whatsgrep/` | `~/.local/share/whatsgrep/` |
+| macOS | `~/Library/Application Support/whatsgrep/` | same |
+| Windows | `%APPDATA%\whatsgrep\` | `%LOCALAPPDATA%\whatsgrep\` |
+
+Override with `--config <file>` and `--data-dir <dir>`. If you used an older version that kept `config.yaml` and `.whatsgrep` in the folder you ran it from, run `whatsgrep migrate` in that folder to copy them over (the originals are left alone; `--from DIR` picks another folder, `--force` replaces existing files). If WhatsApp asks you to link again after migrating, scan the QR once more.
+
+### First run, then keep it on
+
+```
+whatsgrep config init     # create the config in the per-user folder
+whatsgrep                 # run once in a terminal and scan the WhatsApp QR
+whatsgrep service install # then start it at login and restart it if it stops
+```
+
+`service install` creates a systemd user service (Linux), a launchd agent (macOS) or a scheduled task (Windows). Also: `service uninstall|start|stop|restart|status`. On Linux, run `loginctl enable-linger $USER` to keep it running when you are logged out. A service never asks for a QR scan: if the WhatsApp login is lost it exits with code 2 and stays stopped until you run `whatsgrep` once in a terminal. A dropped connection or a closed browser exits with code 1 and the service restarts it.
+
+### Settings in your browser
+
+```
+whatsgrep ui              # opens http://127.0.0.1:<port>/ with a one-time access link
+```
+
+Everything can be changed there, with no config file editing. Switches and fields on the Notifications and Settings pages only stage a change; nothing is applied until you press the common **Save changes** bar (or **Discard**): start/stop the tracker, link WhatsApp (the login QR is shown on the page), build rules with chips instead of YAML (with a "try it" box that tests a sample message live), choose desktop and/or phone notifications, send a test notification, show the ntfy subscribe QR, set the repeat window and browser, and turn **Run at login** on or off. The **Advanced** tab has the config file as text and the log.
+
+It is the same `config.yaml` underneath, so you can edit by hand whenever you like; the UI keeps your header comments and any rule you did not touch exactly as written (comments inside a rule you save from the UI are not kept). Hand edits and UI edits can be mixed: a running tracker reloads rules by itself.
+
+The page only listens on `127.0.0.1`, needs the random token from the link whatsgrep prints, and rejects requests from other sites. Use `--no-open` to just print the link, `--port N` for a fixed port. Closing the UI does not stop the tracker.
+
+### Commands and the shell
+
+`whatsgrep shell` opens a prompt (`whatsgrep>`) that takes every command below. Each also works one-shot, e.g. `whatsgrep config get notifications`.
+
+| Command | What it does |
+|---|---|
+| `status` | Running or not, connection state, matches so far |
+| `config show / path / edit / init` | View, locate, edit (in `$EDITOR`) or create the config |
+| `config get <key>` | e.g. `config get settings.repeat_window_hours` |
+| `config set <key> <value>` | e.g. `config set notifications desktop,ntfy`. Keeps your comments; refuses a value that would break the config |
+| `config unset <key>` | Remove a setting |
+| `rules list / show <name> / remove <name>` | Inspect and delete rules |
+| `rules add <name> [--from a,b] [--any x,y] [--priority high]` | Add a simple rule (use the file for complex ones) |
+| `check <text>` | Which rules match this text |
+| `topic [forget]` | Show or delete the saved ntfy topic |
+| `ui [--port N] [--no-open]` | The settings page above |
+| `migrate [--from DIR] [--force]` | Copy an old `./config.yaml` + `./.whatsgrep` into the standard folders |
+| `service ...` | Background service, see above |
+
+A running tracker reloads rule edits by itself. `notifications` and `ntfy` changes need `service restart`.
+
+### Where secrets are kept
+
+The ntfy topic works like a password on public ntfy.sh, so it is stored in your OS keychain: macOS Keychain, Windows Credential Manager, or the Secret Service on Linux (GNOME Keyring / KWallet, via `secret-tool` from `libsecret-tools`). With no usable keychain (a headless Linux box) it falls back to `state.json` readable only by you, and startup says so. The WhatsApp session itself is a browser profile and stays in the data folder, so treat that folder as a secret.
 
 ## Writing rules
 
@@ -260,8 +328,8 @@ WhatsApp's "Message yourself" chat is processed too. Add your own number to `fro
 
 - Only the rule name, chat name and message text are sent to ntfy. No phone numbers or sender names.
 - Everything else stays on your machine. Message text is not stored.
-- `.whatsgrep/` holds your WhatsApp session and ntfy topic. Anyone with it can use your WhatsApp account. It is gitignored. Never commit or share it.
-- `config.yaml` is gitignored so your chat names and keywords stay private. Share rules by pasting them, not by committing the file.
+- The data folder (`~/.local/share/whatsgrep`, or see the table above) holds your WhatsApp session. Anyone with it can use your WhatsApp account. Never share it. It lives outside any project, so it cannot be committed by accident.
+- Your config lives in your per-user config folder, outside any project, so your chat names and keywords are not committed by accident. Share rules by pasting them.
 
 ## Limitations
 
@@ -278,6 +346,17 @@ src/config.js    config file parsing (sections, defaults, validation)
 src/matcher.js   rule compilation and matching (pure, unit tested)
 src/state.js     ntfy topic generation and persistence
 src/notify.js    desktop + ntfy senders
+src/secrets.js   OS keychain access
+src/commands.js  config / rules / status commands (CLI + shell)
+src/shell.js     interactive prompt
+src/server.js    local web UI API
+src/ui/index.html the web UI page
+src/ruleform.js  rule <-> UI form conversion
+src/control.js   start/stop the tracker, read its log
+src/service.js   systemd / launchd / Task Scheduler setup
+src/browser.js   finds an installed Chrome-family browser
+src/paths.js     per-OS default folders
+scripts/build.js builds the single executable
 test/            node:test unit tests
 ```
 

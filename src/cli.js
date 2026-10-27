@@ -1,66 +1,115 @@
 #!/usr/bin/env node
-import { readFileSync, statSync, watchFile } from 'node:fs';
+import { existsSync, readFileSync, statSync, watchFile } from 'node:fs';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { hasMessageCondition, matches, matchesMessage } from './matcher.js';
 import { parseConfig } from './config.js';
 import { resolveTopic } from './state.js';
 import { notify } from './notify.js';
+import { findBrowser } from './browser.js';
+import { defaultPaths, legacyFiles } from './paths.js';
+import { COMMANDS_HELP, runCommand } from './commands.js';
+import { runShell } from './shell.js';
+import { readStatus, writeStatus } from './status.js';
+import { startServer } from './server.js';
+import { openBrowser } from './open.js';
+import { isPackaged } from './sea.js';
 
 const HELP = `whatsgrep - get notified when WhatsApp messages match your rules
 
-Usage: whatsgrep [options]
+Usage: whatsgrep [options]            start the tracker
+       whatsgrep <command> [...]      manage it (see Commands below)
 
-  -c, --config <file>   rules file (default: config.yaml)
-  -t, --topic <value>   ntfy topic to use and save; "random" generates a new one
+  -c, --config <file>   rules file (default: config.yaml in the per-user config folder)
+  -t, --topic <value>   use this ntfy topic (default: a new random topic every run)
+  -r, --resume          reuse the ntfy topic from the last run instead of a new one
   -s, --server <url>    ntfy server (default: ntfy.server in config, else https://ntfy.sh)
-  -d, --data-dir <dir>  session + state folder (default: .whatsgrep)
+  -d, --data-dir <dir>  session + state folder (default: the per-user data folder)
+  -b, --browser <path>  Chrome/Chromium/Edge to use (default: auto-detected; or set WHATSGREP_BROWSER)
       --qr              print a QR code to subscribe on your phone (shown
-                        automatically when the topic is new)
+                        automatically unless --resume)
       --verbose         print every incoming message with its chat name and id
       --dry-run         print matches, don't send notifications
       --check <text>    test rules against a text offline and exit
                         (also: whatsgrep check <text>)
   -h, --help
-`;
 
-let parsed;
+${COMMANDS_HELP}`;
+
+const OPTIONS = {
+  config: { type: 'string', short: 'c' },
+  browser: { type: 'string', short: 'b' },
+  topic: { type: 'string', short: 't' },
+  resume: { type: 'boolean', short: 'r' },
+  server: { type: 'string', short: 's' },
+  'data-dir': { type: 'string', short: 'd' },
+  'dry-run': { type: 'boolean' },
+  qr: { type: 'boolean' },
+  verbose: { type: 'boolean' },
+  check: { type: 'string' },
+  help: { type: 'boolean', short: 'h' },
+};
+
+// Flags come before the command; everything after the command word belongs to the command
+// (so `rules add x --any a,b` keeps its own flags).
+const argv = process.argv.slice(2);
+const cmdAt = parseArgs({ args: argv, options: OPTIONS, strict: false, allowPositionals: true, tokens: true })
+  .tokens.find((t) => t.kind === 'positional')?.index ?? argv.length;
+let opt;
 try {
-  parsed = parseArgs({
-  allowPositionals: true,
-  options: {
-    config: { type: 'string', short: 'c', default: 'config.yaml' },
-    topic: { type: 'string', short: 't' },
-    server: { type: 'string', short: 's' },
-    'data-dir': { type: 'string', short: 'd', default: '.whatsgrep' },
-    'dry-run': { type: 'boolean' },
-    qr: { type: 'boolean' },
-    verbose: { type: 'boolean' },
-    check: { type: 'string' },
-    help: { type: 'boolean', short: 'h' },
-  },
-  });
+  opt = parseArgs({ args: argv.slice(0, cmdAt), options: OPTIONS }).values;
 } catch (e) {
   console.error(`${e.message}\n\n${HELP}`);
   process.exit(1);
 }
-const { values: opt, positionals } = parsed;
-
-// `whatsgrep check "some text"` is shorthand for --check
-if (positionals[0] === 'check') opt.check = positionals.slice(1).join(' ');
-else if (positionals.length) {
-  console.error(`Unknown command: ${positionals[0]}\n\n${HELP}`);
-  process.exit(1);
-}
+const positionals = argv.slice(cmdAt);
 
 if (opt.help) { console.log(HELP); process.exit(0); }
+
+const { config: configFile, dataDir } = defaultPaths(opt);
+opt.config = configFile;
+opt['data-dir'] = dataDir;
+
+// Flags to bake into a background service so it uses the same files as this invocation.
+// --resume: a background tracker keeps the topic you subscribed to instead of making a new one each start.
+const serviceArgs = ['--config', configFile, '--data-dir', dataDir, '--resume', ...(opt.browser ? ['--browser', opt.browser] : [])];
+const ctx = { configFile, dataDir, serviceArgs };
+
+// Older versions kept their files in whatever folder they were started from.
+const old = legacyFiles();
+if ((old.config && !existsSync(configFile)) || (old.data && !existsSync(join(dataDir, 'auth')))) {
+  if (!positionals.length || ['run', 'ui', 'shell'].includes(positionals[0])) {
+    console.warn(`Found files from an older version in ${process.cwd()}. whatsgrep now keeps its files in:\n  config: ${configFile}\n  data:   ${dataDir}\nRun \`whatsgrep migrate\` here to copy them over (the originals stay).\n`);
+  }
+}
+
+const [command] = positionals;
+if (opt.check !== undefined) positionals.splice(0, positionals.length, 'check', opt.check);
+if (command === 'shell') { await runShell(ctx); process.exit(0); }
+if (command === 'ui') {
+  const { values } = parseArgs({ args: positionals.slice(1), options: { port: { type: 'string' }, 'no-open': { type: 'boolean' } } });
+  const { url } = await startServer(ctx, { port: Number(values.port ?? 0) });
+  console.log(`whatsgrep UI: ${url}\nPress Ctrl+C to close it (the tracker keeps running).`);
+  if (!values['no-open']) openBrowser(url);
+  await new Promise(() => {});
+}
+if (positionals.length && command !== 'run') {
+  try {
+    const out = runCommand(positionals, ctx);
+    if (out) console.log(out);
+    process.exit(0);
+  } catch (e) {
+    console.error(`error: ${e.message}`);
+    process.exit(1);
+  }
+}
 
 const loadConfig = () => parseConfig(readFileSync(opt.config, 'utf8'));
 let config;
 try {
   config = loadConfig();
 } catch (e) {
-  console.error(`Could not load ${opt.config}: ${e.message}\nCopy config.example.yaml to config.yaml first.`);
+  console.error(`Could not load ${opt.config}: ${e.message}\nCreate one with: whatsgrep config init`);
   process.exit(1);
 }
 let { rules } = config;
@@ -82,27 +131,28 @@ function reloadRulesIfChanged() {
   }
 }
 
-if (opt.check !== undefined) {
-  const hit = rules.filter((r) => hasMessageCondition(r) && matchesMessage(r, opt.check));
-  console.log(hit.length ? `match: ${hit.map((r) => r.name).join(', ')}` : 'no match');
-  process.exit(0);
-}
-
 watchFile(opt.config, { interval: 500 }, reloadRulesIfChanged);
+
+// One tracker per data folder: two would fight over the same WhatsApp session.
+const running = readStatus(opt['data-dir']);
+if (running?.running && running.pid !== process.pid) {
+  console.error(`whatsgrep is already running (pid ${running.pid}). Stop it first, or use the UI / \`whatsgrep service\`.`);
+  process.exit(3);
+}
 
 // Methods are fixed at startup (ntfy needs its topic set up first); edits need a restart.
 const methods = config.methods;
 const useNtfy = methods.includes('ntfy');
-const { topic, source } = useNtfy ? resolveTopic(opt['data-dir'], opt.topic) : {};
+const { topic, source, store } = useNtfy ? resolveTopic(opt['data-dir'], opt.topic, opt.resume) : {};
 const dryRun = opt['dry-run'];
 console.log(`Notifications: ${methods.join(', ') || 'none'}`);
-if (useNtfy) console.log(`ntfy topic (${source}):\n  ${topic}\nSubscribe to it in the ntfy app/web: ${server}/${topic}\n`);
+if (useNtfy) console.log(`ntfy topic (${source}), stored in ${store}:\n  ${topic}\nSubscribe to it in the ntfy app/web: ${server}/${topic}\n`);
 
 const { default: wweb } = await import('whatsapp-web.js');
 const { default: qrcode } = await import('qrcode-terminal');
 
 // ntfy:// deep link opens the app and offers to subscribe (no typing the topic).
-if (useNtfy && (opt.qr || source !== 'saved')) {
+if (useNtfy && (opt.qr || !opt.resume || opt.topic)) {
   const u = new URL(server);
   const deepLink = `ntfy://${u.host}/${topic}${u.protocol === 'http:' ? '?secure=false' : ''}`;
   console.log('Scan with your phone camera to subscribe in the ntfy app:');
@@ -111,15 +161,42 @@ if (useNtfy && (opt.qr || source !== 'saved')) {
 }
 const { Client, LocalAuth } = wweb;
 
+// Prefer the real browser installed on this machine. Without one, a packaged build can't run;
+// from source, puppeteer falls back to the Chromium it downloaded.
+let browserPath;
+try {
+  browserPath = findBrowser({ override: opt.browser ?? config.browser });
+} catch (e) {
+  console.error(e.message);
+  process.exit(1);
+}
+if (!browserPath && isPackaged()) {
+  console.error('No Chrome, Chromium, Edge or Brave found. Install one, or point to it with --browser <path> (or WHATSGREP_BROWSER).');
+  process.exit(1);
+}
+if (browserPath) console.log(`Browser: ${browserPath}`);
+
 const client = new Client({
   authStrategy: new LocalAuth({ dataPath: join(opt['data-dir'], 'auth') }),
-  puppeteer: { headless: true, args: ['--no-sandbox'] },
+  puppeteer: { headless: true, args: ['--no-sandbox'], executablePath: browserPath },
 });
+
+// Live state for the `status` command. Exit codes: 1 = lost connection (a service restarts it),
+// 2 = needs a human (re-link), which a service must not retry in a loop.
+const stats = { pid: process.pid, startedAt: Date.now(), state: 'starting', matches: 0, lastMatch: null, recent: [], methods };
+const publish = (state) => { if (state) stats.state = state; writeStatus(opt['data-dir'], stats); };
+const die = (code, msg) => { console.error(msg); publish(code === 2 ? 'needs login' : 'disconnected'); process.exit(code); };
+publish();
 
 // WhatsApp rotates the login QR every ~20s until it is scanned. Redraw it in place
 // instead of stacking a new copy under the old one.
 let qrLines = 0;
+let qrCount = 0;
 client.on('qr', (qr) => {
+  // Under a service nobody can scan: stop instead of asking WhatsApp for logins forever.
+  if (!process.stdout.isTTY && ++qrCount > 3) die(2, 'Not linked to WhatsApp. Run `whatsgrep` once in a terminal, scan the QR, then start the service.');
+  stats.qr = qr;
+  publish('waiting for QR scan');
   qrcode.generate(qr, { small: true }, (art) => {
     const block = `Scan this QR with WhatsApp > Linked devices (it refreshes every ~20s):\n${art}`;
     if (qrLines && process.stdout.isTTY) process.stdout.write(`\x1b[${qrLines}A\x1b[0J`);
@@ -127,7 +204,9 @@ client.on('qr', (qr) => {
     qrLines = block.split('\n').length;
   });
 });
-client.on('authenticated', () => { qrLines = 0; });
+client.on('authenticated', () => { qrLines = 0; delete stats.qr; publish('linking'); });
+client.on('auth_failure', (m) => die(2, `WhatsApp login failed: ${m}. Run whatsgrep in a terminal to link again.`));
+client.on('disconnected', (reason) => die(1, `Disconnected from WhatsApp (${reason}).`));
 // chat id -> { name, phone }. wwebjs's getChat()/getChats() throw "r: r" on some WhatsApp
 // Web versions, so read from WhatsApp's in-page collections directly. Newer WhatsApp uses
 // anonymous "@lid" ids for chats; resolve those to the real phone number when known.
@@ -154,7 +233,12 @@ async function chatInfoOf(id) {
   }
 }
 
-client.on('ready', () => console.log(`Listening${dryRun ? ' (dry run)' : ''}... Ctrl+C to stop.`));
+client.on('ready', () => {
+  delete stats.qr;
+  publish('listening');
+  client.pupBrowser?.on('disconnected', () => die(1, 'The browser closed unexpectedly.'));
+  console.log(`Listening${dryRun ? ' (dry run)' : ''}... Ctrl+C to stop.`);
+});
 
 // Same sender repeating the same text shouldn't ping again.
 const seen = new Map();
@@ -183,6 +267,10 @@ client.on('message_create', async (msg) => {
       if (!matches(rule, msg.body, chatKeys)) continue;
       if (isRepeat(`${rule.name}|${msg.author ?? msg.from}|${msg.body}`)) continue;
       console.log(`[${rule.name}] ${chatName}: ${msg.body}`);
+      stats.matches++;
+      stats.lastMatch = Date.now();
+      stats.recent = [{ t: stats.lastMatch, rule: rule.name, chat: chatName || 'chat', text: msg.body.slice(0, 140) }, ...stats.recent].slice(0, 8);
+      publish();
       if (dryRun) continue;
       try {
         await notify(methods, { rule: rule.name, server, topic, title: `${rule.name} · ${chatName || 'chat'}`, message: msg.body, priority: rule.priority });
@@ -195,5 +283,7 @@ client.on('message_create', async (msg) => {
   }
 });
 
-process.on('SIGINT', async () => { await client.destroy().catch(() => {}); process.exit(0); });
+const stop = async () => { publish('stopped'); await client.destroy().catch(() => {}); process.exit(0); };
+process.on('SIGINT', stop);
+process.on('SIGTERM', stop);
 await client.initialize();

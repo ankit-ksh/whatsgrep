@@ -18,5 +18,5 @@ export function parseConfig(text) {
     if (!r.name) throw new Error(`rule #${i + 1} needs a name`);
     if (!isUsable(r)) throw new Error(`rule "${r.name}" needs something to look for: message.any / message.all, or from.any / from.all`);
   });
-  return { methods: [...new Set(methods)], server: doc.ntfy?.server ?? DEFAULT_SERVER, repeatWindowMs: hours * 3600e3, rules };
+  return { browser: doc.browser ?? undefined, methods: [...new Set(methods)], server: doc.ntfy?.server ?? DEFAULT_SERVER, repeatWindowMs: hours * 3600e3, rules };
 }

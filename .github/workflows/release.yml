@@ -1,0 +1,27 @@
+name: build
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - { os: ubuntu-latest, name: whatsgrep-linux-x64 }
+          - { os: macos-latest, name: whatsgrep-macos-arm64 }
+          - { os: macos-13, name: whatsgrep-macos-x64 }
+          - { os: windows-latest, name: whatsgrep-windows-x64 }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: dist/whatsgrep*
