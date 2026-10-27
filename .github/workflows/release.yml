@@ -66,7 +66,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          cat artifacts/*.sha256 | sort -k2 > artifacts/SHA256SUMS.txt
+          rm artifacts/*.sha256
           gh release create "${GITHUB_REF_NAME}" artifacts/* \
             --title "whatsgrep ${GITHUB_REF_NAME}" \
-            --notes-file <(awk -v v="${GITHUB_REF_NAME#v}" '$0 ~ "^## \\[" v "\\]" {f=1; next} /^## \[/ {f=0} f' CHANGELOG.md) \
+            --notes-file .github/release-notes.md \
             --verify-tag

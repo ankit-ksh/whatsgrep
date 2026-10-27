@@ -16,63 +16,44 @@ Watch selected WhatsApp chats for keyword patterns and get a push notification o
 
 ## Install
 
-Download the file for your system from the [latest release](https://github.com/ankit-ksh/whatsgrep/releases/latest). Each is a single program that needs no Node.js. The only requirement is a Chrome, Chromium, Edge or Brave browser, which whatsgrep finds automatically (see `--browser` if yours is somewhere unusual).
+Download the file for your system from the [latest release](https://github.com/ankit-ksh/whatsgrep/releases/latest). It is a single program with nothing else to install, apart from a Chrome, Chromium, Edge or Brave browser.
 
-| System | File | Status |
-|---|---|---|
-| Linux, 64-bit x86 | `whatsgrep-linux-x64` | Used day to day by the author |
-| Linux, ARM 64-bit | `whatsgrep-linux-arm64` | Built and smoke-tested on every release |
-| macOS, Apple silicon | `whatsgrep-macos-arm64` | Built and smoke-tested on every release |
-| macOS, Intel | `whatsgrep-macos-x64` | Built and smoke-tested on every release |
-| Windows, 64-bit | `whatsgrep-windows-x64.exe` | Built and smoke-tested on every release |
+| System | File |
+|---|---|
+| Windows | `whatsgrep-windows-x64.exe` |
+| macOS | `whatsgrep-macos-arm64` (Apple silicon), `whatsgrep-macos-x64` (Intel) |
+| Linux | `whatsgrep-linux-x64`, `whatsgrep-linux-arm64` |
 
-"Smoke-tested" means CI runs the real executable on that operating system (version, config, rules and rule checking). The interface, the WhatsApp login, notifications and the background service have so far been exercised on Linux only, so please [open an issue](https://github.com/ankit-ksh/whatsgrep/issues) if something misbehaves elsewhere. The programs are not code-signed.
+Then run `whatsgrep ui`, choose **Log in with QR code**, add a rule, and turn on **Run at login** in Settings.
 
-### Linux
+<details><summary><b>Linux</b></summary>
 
 ```sh
 chmod +x whatsgrep-linux-x64
 mkdir -p ~/.local/bin && mv whatsgrep-linux-x64 ~/.local/bin/whatsgrep
 whatsgrep ui
 ```
+Optional: `libnotify` (desktop pop-ups) and `libsecret` (keychain). Run `loginctl enable-linger $USER` to keep the background service running while logged out.
+</details>
 
-Optional: `libnotify` (`notify-send`) for desktop pop-ups and `libsecret` (`secret-tool`) so secrets go in your keychain. Without the keychain they fall back to a file only you can read. Run `loginctl enable-linger $USER` if the background service should keep running while you are logged out.
-
-### macOS
+<details><summary><b>macOS</b></summary>
 
 ```sh
 chmod +x whatsgrep-macos-arm64
-xattr -d com.apple.quarantine whatsgrep-macos-arm64   # the download is unsigned
+xattr -d com.apple.quarantine whatsgrep-macos-arm64   # unsigned download
 mkdir -p ~/.local/bin && mv whatsgrep-macos-arm64 ~/.local/bin/whatsgrep
 whatsgrep ui
 ```
+</details>
 
-Allow notifications when macOS asks. Add `~/.local/bin` to your `PATH` if `whatsgrep` is not found.
+<details><summary><b>Windows</b></summary>
 
-### Windows
+Save the `.exe` somewhere permanent (the startup task points at it), then in PowerShell run `.\whatsgrep-windows-x64.exe ui`. If SmartScreen warns, choose **More info**, then **Run anyway**.
+</details>
 
-Save `whatsgrep-windows-x64.exe` somewhere permanent (the startup task points at it), then in PowerShell:
+> **Status.** The Linux x64 build is used daily by the author. The others are built and smoke-tested on their own operating system on every release, but the interface, login, notifications and background service have only been exercised on Linux so far. Please [open an issue](https://github.com/ankit-ksh/whatsgrep/issues) if something misbehaves.
 
-```powershell
-.\whatsgrep-windows-x64.exe ui
-```
-
-If SmartScreen warns about an unknown app, choose **More info**, then **Run anyway**.
-
-### First run (all systems)
-
-1. `whatsgrep ui` opens the interface in your browser.
-2. On the Overview page choose **Log in with QR code** and scan it in WhatsApp: Settings, Linked devices, Link a device.
-3. Add a rule on the **Rules** page and pick where alerts go on **Delivery**.
-4. Turn on **Run at login** under Settings so it is always on.
-
-### Verify, update, uninstall
-
-- Each release has a `.sha256` file per download: `sha256sum -c whatsgrep-linux-x64.sha256` (macOS: `shasum -a 256 -c`).
-- `whatsgrep --version` prints the version. To update, replace the file with a newer one and run `whatsgrep service restart` if the background service is on.
-- To remove it: `whatsgrep service uninstall`, delete the file, then delete your config and data folders (see the table under [Run it as a program](#run-it-as-a-program)). Also remove the linked device in WhatsApp under Settings, Linked devices.
-
-Versions follow [semantic versioning](https://semver.org/); see the [changelog](CHANGELOG.md). Working from source instead? See [CONTRIBUTING.md](CONTRIBUTING.md).
+`whatsgrep --version` prints the version, and `SHA256SUMS.txt` on each release has the checksums. To uninstall, run `whatsgrep service uninstall`, delete the file and your config and data folders, and remove the device under WhatsApp, Linked devices. Versions follow [semver](https://semver.org/); see the [changelog](CHANGELOG.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## How it works
 
