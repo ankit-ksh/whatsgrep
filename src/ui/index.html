@@ -171,7 +171,7 @@
   .tpl span { color: var(--muted); font-size: 13px; }
 
   /* editor */
-  .crumbs { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; margin-bottom: 14px; }
+  .crumbs { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; position: sticky; top: 69px; z-index: 15; background: var(--bg); margin: -26px -32px 14px; padding: 12px 32px; border-bottom: 1px solid var(--line); }
   .crumbs button { background: none; border: 0; color: var(--muted); padding: 0; display: inline-flex; align-items: center; gap: 4px; }
   .crumbs button:hover { color: var(--text); }
   .editor { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 20px; align-items: start; }
@@ -295,7 +295,7 @@
     .brand { padding: 0 8px 0 4px; } .brand > span:not(.mark) { display: none; }
     .nav { flex-direction: row; } .nav button .label { display: none; } .nav .count, .sidefoot { display: none; }
     .sidebar .grow { display: none; }
-    .topbar { padding: 12px 16px; position: static; flex-wrap: wrap; } .content { padding: 18px 16px 24px; }
+    .topbar { padding: 12px 16px; position: static; flex-wrap: wrap; } .crumbs { top: 0; margin: -18px -16px 14px; padding: 10px 16px; } .content { padding: 18px 16px 24px; }
     .savebar > div { padding: 10px 16px; }
     .setting { flex-direction: column; align-items: stretch; gap: 10px; }
     .setting .ctl input[type=text] { width: 100%; }
