@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { isPackaged } from './sea.js';
@@ -82,6 +82,17 @@ export function isServiceInstalled(platform = process.platform) {
   return false;
 }
 
+// Does the installed service launch this exact command, with these folders? A service installed by
+// an older version keeps pointing at the folders it was created with.
+export function serviceIsCurrent(args, dataDir, platform = process.platform) {
+  const cmd = launchCommand();
+  try {
+    if (platform === 'linux') return readFileSync(paths().unit, 'utf8') === systemdUnit(cmd, args);
+    if (platform === 'darwin') return readFileSync(paths().plist, 'utf8') === launchdPlist(cmd, args, join(dataDir, 'whatsgrep.log'));
+  } catch { return false; }
+  return true;
+}
+
 // install | uninstall | start | stop | restart | status. `args` are whatsgrep's own flags
 // (config/data-dir) to bake in. Returns the text to show the user.
 export function manageService(action, { args = [], dataDir, platform = process.platform } = {}) {
@@ -93,7 +104,8 @@ export function manageService(action, { args = [], dataDir, platform = process.p
       mkdirSync(dirname(unit), { recursive: true });
       writeFileSync(unit, systemdUnit(cmd, args));
       run('systemctl', ['--user', 'daemon-reload']);
-      run('systemctl', ['--user', 'enable', '--now', NAME]);
+      run('systemctl', ['--user', 'enable', NAME]);
+      run('systemctl', ['--user', 'restart', NAME]); // restart so an already-running old copy picks up the new command
       return `Installed ${unit}\nLogs: journalctl --user -u ${NAME} -f\nTo keep it running when logged out: loginctl enable-linger $USER`;
     }
     if (action === 'uninstall') {
@@ -133,6 +145,7 @@ export function manageService(action, { args = [], dataDir, platform = process.p
       const xml = join(dataDir, 'task.xml');
       mkdirSync(dataDir, { recursive: true });
       writeFileSync(xml, '\ufeff' + windowsTaskXml(cmd, args), 'utf16le');
+      try { run('schtasks', ['/End', '/TN', NAME]); } catch {}
       run('schtasks', ['/Create', '/F', '/TN', NAME, '/XML', xml]);
       run('schtasks', ['/Run', '/TN', NAME]);
       return 'Installed. It starts at every logon and restarts if it stops.';

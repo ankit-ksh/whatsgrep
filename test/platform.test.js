@@ -53,3 +53,21 @@ test('shell input is split like a shell line', () => {
   assert.deepEqual(tokenize('config set notifications desktop,ntfy'), ['config', 'set', 'notifications', 'desktop,ntfy']);
   assert.deepEqual(tokenize('rules remove "my rule"'), ['rules', 'remove', 'my rule']);
 });
+
+test('an installed service is current only when it matches the folders in use', async () => {
+  const { mkdtempSync, mkdirSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { serviceIsCurrent, launchCommand } = await import('../src/service.js');
+  const dir = mkdtempSync(join(tmpdir(), 'wg-svc-'));
+  const old = process.env.XDG_CONFIG_HOME;
+  process.env.XDG_CONFIG_HOME = dir;
+  try {
+    const args = ['--config', '/new/config.yaml', '--data-dir', '/new/data', '--resume'];
+    mkdirSync(join(dir, 'systemd', 'user'), { recursive: true });
+    writeFileSync(join(dir, 'systemd', 'user', 'whatsgrep.service'), systemdUnit(launchCommand(), ['--config', '/old/config.yaml', '--data-dir', '/old/.whatsgrep']));
+    assert.equal(serviceIsCurrent(args, '/new/data', 'linux'), false);
+    writeFileSync(join(dir, 'systemd', 'user', 'whatsgrep.service'), systemdUnit(launchCommand(), args));
+    assert.equal(serviceIsCurrent(args, '/new/data', 'linux'), true);
+  } finally { if (old === undefined) delete process.env.XDG_CONFIG_HOME; else process.env.XDG_CONFIG_HOME = old; }
+});

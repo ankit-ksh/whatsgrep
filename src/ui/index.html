@@ -239,6 +239,26 @@
   dialog p { margin: 0 0 18px; color: var(--muted); }
   dialog .row-actions { justify-content: flex-end; }
   .secret { filter: blur(6px); user-select: none; }
+  dialog.linkdlg { width: min(640px, 94vw); padding: 0; overflow: hidden; }
+  .ld-head { display: flex; justify-content: space-between; align-items: flex-start; padding: 18px 22px; border-bottom: 1px solid var(--line); }
+  .ld-head h3 { margin: 0; }
+  .ld-body { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 26px; padding: 24px 22px; min-height: 300px; align-items: center; }
+  .ld-box { width: 250px; height: 250px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; overflow: hidden; }
+  .ld-box .qr { width: 100%; height: 100%; border: 0; border-radius: 0; padding: 8px; }
+  .ld-side h4 { margin: 0 0 10px; font-size: 16px; }
+  .ld-side .hint { margin: 8px 0 0; }
+  .stages { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 9px; }
+  .stages li { display: flex; align-items: center; gap: 10px; color: var(--faint); font-size: 14px; }
+  .stages li.now { color: var(--text); font-weight: 600; }
+  .stages li.done { color: var(--muted); }
+  .stages .sd { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--line-strong); display: grid; place-items: center; flex: none; }
+  .stages li.done .sd { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .stages li.now .sd { border-color: var(--accent); color: var(--accent); }
+  .stages .sd .spin { width: 10px; height: 10px; border-width: 2px; }
+  .bigicon { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; }
+  .bigicon.ok { background: var(--accent); color: var(--accent-ink); }
+  .bigicon.bad { background: var(--danger-soft); color: var(--danger); }
+  @media (max-width: 600px) { .ld-body { grid-template-columns: 1fr; justify-items: center; } .ld-box { width: min(250px, 100%); } }
   .switch.locked { opacity: .55; }
   .switch.locked input { cursor: not-allowed; }
   .bell { position: relative; }
@@ -654,9 +674,11 @@ function waInfo() {
   const saved = S.whatsapp?.account;
   const live = st?.running ? st.account : null;
   if (live) return { kind: 'linked', account: live, live: true };
+  if (st?.running && st.state === 'listening') return { kind: 'linked', account: saved ?? null, live: true };
   if (st?.running && st.qr) return { kind: 'unlinked', waiting: true };
   if (st?.running && ['starting', 'linking'].includes(st.state)) return { kind: 'connecting', account: saved };
-  if (!st?.running && saved && S.whatsapp.hasSession) return { kind: 'linked', account: saved, live: false };
+  // A saved session counts as linked even when the number is not known yet (it is recorded on the next connect).
+  if (!st?.running && S.whatsapp?.hasSession && st?.state !== 'needs login') return { kind: 'linked', account: saved ?? null, live: false };
   return { kind: 'unlinked' };
 }
 
@@ -666,9 +688,9 @@ function whatsappCard() {
   const pill = wa.kind === 'linked' ? (wa.live ? ['Linked', 'ok'] : ['Linked · tracker stopped', 'warn']) : wa.kind === 'connecting' ? ['Connecting…', 'warn'] : ['Not linked', 'bad'];
   const who = wa.account?.number
     ? [h('b', { style: 'font-size:17px' }, fmtNumber(wa.account.number)), wa.account.name && h('span', { class: 'muted' }, ' · ' + wa.account.name)]
-    : [h('b', null, wa.kind === 'linked' ? 'Linked account' : 'No WhatsApp account linked')];
+    : [h('b', null, wa.kind === 'linked' ? 'Linked account' : 'No WhatsApp account linked'), wa.kind === 'linked' && h('span', { class: 'muted' }, ' · number appears once connected')];
   const hint = wa.kind === 'linked'
-    ? (wa.live ? 'Connected and listening to your chats.' : 'This account is saved. Press Start in the top bar to begin listening.')
+    ? (wa.live ? 'Connected and listening to your chats.' : (wa.account ? 'This account is saved. Press Start in the top bar to begin listening.' : 'A WhatsApp session is saved on this computer. Press Start to connect and show the number.'))
     : wa.kind === 'connecting' ? 'Opening WhatsApp Web…' : 'Link a WhatsApp account so whatsgrep can watch your chats. It only listens and never sends messages.';
   const checked = wa.live && st.checkedAt ? ` · checked ${ago(st.checkedAt)}${st.waState && st.waState !== 'CONNECTED' ? ' (' + st.waState + ')' : ''}` : '';
   const acts = [];
@@ -714,45 +736,74 @@ async function logoutWhatsapp() {
   renderChrome(); renderPage();
 }
 
-// Popup with the login QR. Starts the tracker if needed and closes itself once linked.
+// Popup with the login QR. Starts the tracker if needed, shows real progress, and closes once linked.
 async function loginDialog() {
-  const body = h('div', { style: 'display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;min-height:300px;justify-content:center' });
   let open = true;
-  const d = h('dialog', null, h('h3', null, 'Link your WhatsApp'), body,
-    h('div', { class: 'row-actions', style: 'justify-content:flex-end;margin-top:16px' }, h('button', { class: 'btn', onclick: () => d.close() }, 'Close')));
+  const head = h('div', { class: 'ld-head' }, h('div', null, h('h3', null, 'Link your WhatsApp'), h('div', { class: 'hint' }, 'Scan a code with your phone to connect')),
+    h('button', { class: 'btn ghost icon', 'aria-label': 'Close', onclick: () => d.close() }, icon('x', 18)));
+  const box = h('div', { class: 'ld-box' });
+  const side = h('div', { class: 'ld-side' });
+  const d = h('dialog', { class: 'linkdlg' }, head, h('div', { class: 'ld-body' }, box, side));
   d.addEventListener('close', () => { open = false; d.remove(); renderChrome(); renderPage(); });
   document.body.append(d);
   d.showModal();
-  const showWait = (msg) => body.replaceChildren(h('span', { class: 'spin', style: 'width:28px;height:28px;border-width:3px;color:var(--accent)' }), h('div', { class: 'muted' }, msg));
-  showWait('Starting WhatsApp…');
 
-  if (!S.status?.running) await control('start');
+  const STAGES = ['Start the tracker', 'Open WhatsApp Web', 'Get the login code', 'Scan with your phone'];
+  const stages = (active, note) => h('ul', { class: 'stages' }, STAGES.map((t, i) => h('li', { class: i < active ? 'done' : i === active ? 'now' : '' },
+    h('span', { class: 'sd' }, i < active ? icon('check', 13) : i === active && note !== 'wait' ? spinner() : null), h('span', null, t))));
+  const spinBox = (msg) => box.replaceChildren(h('span', { class: 'spin', style: 'width:34px;height:34px;border-width:3px;color:var(--accent)' }), h('div', { class: 'muted', style: 'margin-top:12px;font-size:13px' }, msg));
+
+  async function fail(title, detail) {
+    const log = (await api('GET', '/api/log').catch(() => ({ text: '' }))).text.trim().split('\n').slice(-8).join('\n');
+    box.replaceChildren(h('span', { class: 'bigicon bad' }, icon('alert', 28)));
+    side.replaceChildren(h('h4', null, title), h('p', { class: 'hint' }, detail),
+      log && h('pre', { class: 'log', style: 'max-height:140px;font-size:12px' }, log),
+      h('div', { class: 'row-actions', style: 'margin-top:12px' },
+        h('button', { class: 'btn primary', onclick: () => { d.close(); loginDialog(); } }, icon('refresh', 15), 'Try again'),
+        h('button', { class: 'btn', onclick: () => { d.close(); go('advanced'); } }, 'Open full log')));
+  }
+
+  spinBox('Starting…'); side.replaceChildren(h('h4', null, 'Getting things ready'), stages(0), h('p', { class: 'hint' }, 'This usually takes 10–30 seconds.'));
+  await refresh().catch(() => {});
+  if (!S.status?.running) { await api('POST', '/api/tracker', { action: 'start' }); busy = 'starting'; busySince = Date.now(); renderChrome(); pollUntilSettled(); }
+
   let shownQr = null;
   const started = Date.now();
   while (open) {
     await new Promise((x) => setTimeout(x, 1000));
     await refresh().catch(() => {});
     const st = S.status;
-    if (st?.running && st.account) {
-      toast('Linked as ' + fmtNumber(st.account.number));
-      d.close();
+    const waited = Date.now() - started;
+    if (st?.running && (st.account || st.state === 'listening')) {
+      box.replaceChildren(h('span', { class: 'bigicon ok' }, icon('check', 30)));
+      side.replaceChildren(h('h4', null, 'WhatsApp is linked'), h('p', { class: 'hint' }, st.account?.number ? 'Connected as ' + fmtNumber(st.account.number) + '.' : 'Connected and listening.'));
+      await new Promise((x) => setTimeout(x, 1400));
+      if (open) d.close();
       return;
     }
     if (st?.running && st.qr) {
       if (st.qr !== shownQr) {
         shownQr = st.qr;
         const svg = await fetch('/api/qr.svg', { headers: { 'x-token': token } }).then((r) => (r.ok ? r.text() : null)).catch(() => null);
-        if (svg) body.replaceChildren(
-          h('img', { class: 'qr', alt: 'WhatsApp login QR code', width: 220, height: 220, src: 'data:image/svg+xml;base64,' + btoa(svg) }),
-          h('ol', { class: 'how', style: 'text-align:left' }, h('li', null, 'Open WhatsApp on your phone'), h('li', null, 'Settings → Linked devices → Link a device'), h('li', null, 'Scan this code')),
-          h('div', { class: 'hint' }, 'The code refreshes about every 20 seconds.'));
+        if (svg) box.replaceChildren(h('img', { class: 'qr', alt: 'WhatsApp login QR code', src: 'data:image/svg+xml;base64,' + btoa(svg) }));
+        side.replaceChildren(h('h4', null, 'Scan this code'), stages(3, 'wait'),
+          h('ol', { class: 'how' }, h('li', null, 'Open WhatsApp on your phone'), h('li', null, 'Tap Settings → Linked devices'), h('li', null, 'Tap “Link a device” and scan')),
+          h('p', { class: 'hint' }, 'The code refreshes about every 20 seconds.'));
       }
-    } else if (st?.running && st.state === 'linking') showWait('Linking…');
-    else if (!st?.running && !busy && Date.now() - started > 6000) {
-      body.replaceChildren(h('div', null, 'The tracker stopped before showing a code.'), h('div', { class: 'hint' }, 'Open Advanced → Log to see why.'));
-      return;
+      continue;
     }
-    if (Date.now() - started > 180000) { body.replaceChildren('Timed out waiting for the scan. Close this and try again.'); return; }
+    if (st?.running && st.state === 'linking') { spinBox('Linking your account…'); side.replaceChildren(h('h4', null, 'Almost there'), stages(3)); continue; }
+    if (st?.running) {
+      const stage = waited > 6000 ? 2 : 1;
+      spinBox(stage === 2 ? 'Waiting for WhatsApp to show a code…' : 'Opening WhatsApp Web…');
+      side.replaceChildren(h('h4', null, 'Getting things ready'), stages(stage), h('p', { class: 'hint' }, 'This usually takes 10–30 seconds.'));
+      if (waited > 75000) return fail('This is taking too long', 'WhatsApp Web did not show a code in time. Check your internet connection, then try again.');
+      continue;
+    }
+    if (waited > 7000 || ['needs login', 'disconnected'].includes(st?.state)) {
+      busy = null;
+      return fail('The tracker stopped', st?.state === 'needs login' ? 'WhatsApp needs a fresh link. Try again.' : 'It exited before showing a code. The last log lines are below.');
+    }
   }
 }
 

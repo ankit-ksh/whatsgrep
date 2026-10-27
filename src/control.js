@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { closeSync, mkdirSync, openSync, readFileSync, statSync, truncateSync } from 'node:fs';
 import { join } from 'node:path';
-import { isServiceInstalled, launchCommand, manageService } from './service.js';
+import { isServiceInstalled, launchCommand, manageService, serviceIsCurrent } from './service.js';
 import { readStatus } from './status.js';
 
 export const logFile = (dataDir) => join(dataDir, 'whatsgrep.log');
@@ -10,7 +10,11 @@ export const logFile = (dataDir) => join(dataDir, 'whatsgrep.log');
 // background process that logs to the data folder.
 export function startTracker({ dataDir, serviceArgs }) {
   if (readStatus(dataDir)?.running) return 'already running';
-  if (isServiceInstalled()) return manageService('start', { args: serviceArgs, dataDir }).trim();
+  if (isServiceInstalled()) {
+    // A service from an older version may still point at old folders: rewrite it for these ones.
+    if (!serviceIsCurrent(serviceArgs, dataDir)) { manageService('install', { args: serviceArgs, dataDir }); return 'updated the background service and started it'; }
+    return manageService('start', { args: serviceArgs, dataDir }).trim();
+  }
   mkdirSync(dataDir, { recursive: true });
   const log = logFile(dataDir);
   try { if (statSync(log).size > 1e6) truncateSync(log, 0); } catch {}
