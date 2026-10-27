@@ -6,9 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-- Linux builds strip the embedded Node runtime (about 20 MB smaller).
+## [0.2.1]
 
 ### Changed
+- Linux builds strip the embedded Node runtime (about 20 MB smaller).
 - A new config starts with no rules; the interface has a Help page explaining how to write them.
 - The repeat filter is off by default, so every matching message alerts you. Set hours under Settings to turn it on.
 
