@@ -293,6 +293,7 @@ client.on('ready', () => {
 // Same sender repeating the same text shouldn't ping again.
 const seen = new Map();
 const isRepeat = (key) => {
+  if (!config.repeatWindowMs) return false; // off: every match alerts
   const now = Date.now();
   for (const [k, t] of seen) if (now - t > config.repeatWindowMs) seen.delete(k);
   const dup = seen.has(key);

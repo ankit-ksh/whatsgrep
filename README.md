@@ -226,7 +226,7 @@ The ntfy topic works like a password on public ntfy.sh, so it is stored in your 
 |---|---|
 | `notifications` | List of where alerts go: `desktop` (native notification on this computer: `notify-send` on Linux, `osascript` on macOS, a PowerShell toast on Windows) and/or `ntfy` (phone). Default `[ntfy]`. ntfy's topic, QR code and server are only set up if `ntfy` is listed. Needs a restart to change |
 | `ntfy` | `server`: the ntfy server to publish to (default `https://ntfy.sh`). The `--server` flag overrides it |
-| `settings` | `repeat_window_hours`: notify once per sender and text in this window (default `6`, `0` = off) |
+| `settings` | `repeat_window_hours`: notify once per sender and text in this window (default `0` = off: every match alerts) |
 | `rules` | What to watch for. Everything below. The other two sections are optional |
 
 The topic is deliberately not in the file, so you can share your config without leaking it.
@@ -235,7 +235,7 @@ The topic is deliberately not in the file, so you can share your config without 
 ntfy:
   server: https://ntfy.sh
 settings:
-  repeat_window_hours: 6
+  repeat_window_hours: 0
 rules:
   - name: items-for-sale
     from:                                     # WHICH chats

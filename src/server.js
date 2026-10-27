@@ -15,7 +15,7 @@ import { isServiceInstalled, manageService } from './service.js';
 import { clearAccount, clearMatches, readAccount, readChats, readMatches, readStatus, sendCommand } from './status.js';
 import { savedTopic, forgetTopic, randomTopic, saveTopic } from './state.js';
 import { storeName } from './secrets.js';
-import { exampleText } from './commands.js';
+import { defaultConfigText } from './commands.js';
 import { VERSION } from './version.js';
 
 const PRIORITIES = ['min', 'low', 'default', 'high', 'urgent'];
@@ -123,7 +123,7 @@ export function startServer(ctx, { port = 0 } = {}) {
   const routes = {
     'GET /api/state': () => loadState(),
     'POST /api/config/init': () => {
-      if (!existsSync(configFile)) { mkdirSync(dirname(configFile), { recursive: true }); writeFileSync(configFile, exampleText()); }
+      if (!existsSync(configFile)) { mkdirSync(dirname(configFile), { recursive: true }); writeFileSync(configFile, defaultConfigText()); }
       return loadState();
     },
     'PUT /api/config': (body) => {

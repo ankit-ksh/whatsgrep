@@ -29,6 +29,10 @@ test('service definitions carry the command and restart policy', () => {
   assert.match(launchdPlist(cmd, args, '/log'), /<key>KeepAlive<\/key><true\/>/);
   assert.match(windowsTaskXml(['C:\\w\\whatsgrep.exe'], args), /<Command>C:\\w\\whatsgrep.exe<\/Command>/);
   assert.match(windowsTaskXml(cmd, args), /RestartOnFailure/);
+  const xml = windowsTaskXml(cmd, args, 'PC\\me');
+  assert.match(xml, /<LogonTrigger>[^]*<UserId>PC\\me<\/UserId>/);   // per-user trigger: no admin rights or password needed
+  assert.match(xml, /<LogonType>InteractiveToken<\/LogonType>/);
+  assert.match(xml, /<RunLevel>LeastPrivilege<\/RunLevel>/);
 });
 
 test('secrets backends call the native tools without leaking values into scripts', () => {

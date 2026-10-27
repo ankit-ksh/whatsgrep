@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { homedir, userInfo } from 'node:os';
 import { dirname, join } from 'node:path';
 import { isPackaged } from './sea.js';
 
@@ -49,25 +49,32 @@ ${items}
 }
 
 // Windows: a scheduled task at logon that restarts itself after a failure.
-export function windowsTaskXml(cmd, args) {
+// DOMAIN\user for the current user, so the task is created for them alone (a task for "any user"
+// needs administrator rights, or makes schtasks ask for a password).
+export const windowsUser = () => (process.env.USERDOMAIN ? `${process.env.USERDOMAIN}\\${userInfo().username}` : userInfo().username);
+
+export function windowsTaskXml(cmd, args, user = windowsUser()) {
   const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
   const [exe, ...rest] = [...cmd, ...args];
   return `<?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
-  <Triggers><LogonTrigger><Enabled>true</Enabled></LogonTrigger></Triggers>
+  <Triggers><LogonTrigger><Enabled>true</Enabled><UserId>${esc(user)}</UserId></LogonTrigger></Triggers>
+  <Principals><Principal id="Author"><UserId>${esc(user)}</UserId><LogonType>InteractiveToken</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal></Principals>
   <Settings>
+    <StartWhenAvailable>true</StartWhenAvailable>
     <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
     <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
     <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
     <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
     <RestartOnFailure><Interval>PT1M</Interval><Count>999</Count></RestartOnFailure>
   </Settings>
-  <Actions><Exec><Command>${esc(exe)}</Command><Arguments>${esc(rest.map(q).join(' '))}</Arguments></Exec></Actions>
+  <Actions Context="Author"><Exec><Command>${esc(exe)}</Command><Arguments>${esc(rest.map(q).join(' '))}</Arguments></Exec></Actions>
 </Task>
 `;
 }
 
-const run = (file, args, opts) => execFileSync(file, args, { stdio: 'pipe', encoding: 'utf8', ...opts });
+// stdin closed and a timeout, so a tool that waits for an answer can never freeze the program.
+const run = (file, args, opts) => execFileSync(file, args, { stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8', timeout: 30000, windowsHide: true, ...opts });
 
 const paths = (home = homedir()) => ({
   unit: join(process.env.XDG_CONFIG_HOME ?? join(home, '.config'), 'systemd', 'user', `${NAME}.service`),

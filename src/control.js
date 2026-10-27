@@ -20,7 +20,9 @@ export function startTracker({ dataDir, serviceArgs }) {
   try { if (statSync(log).size > 1e6) truncateSync(log, 0); } catch {}
   const fd = openSync(log, 'a');
   const [exe, ...pre] = launchCommand();
-  spawn(exe, [...pre, ...serviceArgs, 'run'], { detached: true, stdio: ['ignore', fd, fd], windowsHide: true }).unref();
+  const child = spawn(exe, [...pre, ...serviceArgs, 'run'], { detached: true, stdio: ['ignore', fd, fd], windowsHide: true });
+  child.on('error', () => {}); // a failed start shows up as "stopped" with the log, not a crash
+  child.unref();
   closeSync(fd);
   return 'started';
 }

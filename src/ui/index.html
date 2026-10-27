@@ -240,6 +240,15 @@
   dialog p { margin: 0 0 18px; color: var(--muted); }
   dialog .row-actions { justify-content: flex-end; }
   .secret { filter: blur(6px); user-select: none; }
+  .help .body p { margin: 0 0 10px; } .help .body p:last-child { margin-bottom: 0; }
+  .help ol.how { margin: 0 0 10px; color: var(--text); }
+  .helptbl { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .helptbl td { padding: 9px 12px 9px 0; border-top: 1px solid var(--line); vertical-align: top; }
+  .helptbl tr:first-child td { border-top: 0; } .helptbl td:first-child { white-space: nowrap; width: 1%; padding-right: 22px; }
+  .recipes { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+  .recipe { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; background: var(--surface-2); }
+  .recipe .hint { margin: 2px 0 10px; } .recipe .facts { grid-template-columns: 96px minmax(0, 1fr); }
+  @media (max-width: 700px) { .helptbl td:first-child { white-space: normal; } }
   .purpose { background: linear-gradient(135deg, var(--accent-soft), var(--surface)); }
   .psteps { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; }
   .pstep { display: flex; gap: 10px; align-items: flex-start; }
@@ -402,6 +411,7 @@ const ICONS = {
   search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
   moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
+  help: '<circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.6 2.2c-.8.4-1.2 1-1.2 1.8M12 17h.01"/>',
   send: '<path d="m22 2-7 20-4-9-9-4zM22 2 11 13"/>',
   mark: '<path d="M4 20l1.4-4.2A8 8 0 1 1 8.4 18.7z"/><path d="M9 10h6M9 13h4"/>',
   alert: '<path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>',
@@ -462,6 +472,7 @@ const TABS = [
   ['delivery', 'Delivery', 'send', 'Where alerts are sent: this computer, your phone'],
   ['settings', 'Settings', 'sliders', 'Start-up, browser and repeat handling'],
   ['advanced', 'Advanced', 'code', 'Config file and log'],
+  ['help', 'Help', 'help', 'How to write rules'],
 ];
 const TAB_KEYS = { delivery: ['notifications', 'ntfyServer', 'ntfyTopic'], settings: ['repeatWindowHours', 'browser', 'runAtLogin'] };
 const PRIORITIES = [['min', 'Silent'], ['low', 'Low'], ['default', 'Normal'], ['high', 'High'], ['urgent', 'Urgent']];
@@ -853,7 +864,7 @@ async function pageOverview(root) {
 
   const steps = [
     [waInfo().kind === 'linked', 'Link WhatsApp', 'Use “Log in” in the WhatsApp card above', null],
-    [S.rules.length > 0, 'Add a rule', 'Say what you want to hear about', 'rules'],
+    [S.rules.length > 0, 'Add a rule', 'Say which chats and words matter. Help explains how.', 'rules'],
     [(S.config?.notifications ?? []).length > 0, 'Choose where alerts go', 'Desktop, phone, or both', 'delivery'],
     [S.runAtLogin, 'Start with your computer', 'So it is always on', 'settings'],
   ];
@@ -877,13 +888,6 @@ async function pageOverview(root) {
 // ============================================================================
 const emptySection = () => ({ any: [], all: [], exclude: [] });
 const newRule = () => ({ name: '', priority: 'default', from: emptySection(), message: emptySection() });
-const w = (v) => ({ kind: 'exact', value: v });
-const TEMPLATES = [
-  { title: 'Keyword alert', sub: 'Any chat mentioning certain words', make: () => ({ name: 'Keyword alert', priority: 'default', from: emptySection(), message: { any: [w('urgent')], all: [], exclude: [] } }) },
-  { title: 'Things for sale', sub: 'Sale posts only, skipping people asking to buy', make: () => ({ name: 'For sale', priority: 'high', from: emptySection(), message: { any: [], all: [[w('sell'), w('selling'), w('for sale')]], exclude: [w('buy'), w('wtb'), w('wanted')] } }) },
-  { title: 'One chat only', sub: 'Everything said in a single group or contact', onlyChats: true, make: () => ({ name: 'One chat', priority: 'low', from: emptySection(), message: emptySection() }) },
-];
-
 const vals = (list, max = 4) => {
   const v = list.map((e) => e.value);
   return v.length > max ? [...v.slice(0, max), `+${v.length - max} more`] : v;
@@ -914,8 +918,10 @@ function pageRules(root) {
     const q = ruleFilter.trim().toLowerCase();
     const shown = S.rules.map((r, i) => [r, i]).filter(([r]) => !q || r.name.toLowerCase().includes(q));
     if (!S.rules.length) {
-      holder.replaceChildren(h('div', { class: 'card' }, h('div', { class: 'empty' }, h('b', null, 'No rules yet'), 'A rule says which chats to watch and what words to look for. Start from an idea:',
-        h('div', { class: 'tpl' }, TEMPLATES.map((t) => h('button', { onclick: () => openEditor(-1, t.make(), t.onlyChats) }, h('b', null, t.title), h('span', null, t.sub)))))));
+      holder.replaceChildren(h('div', { class: 'card' }, h('div', { class: 'empty' }, h('b', null, 'No rules yet'), 'A rule says which chats to listen to and what a message must say.',
+        h('div', { class: 'row-actions', style: 'justify-content:center;margin-top:16px' },
+          h('button', { class: 'btn primary', onclick: () => openEditor(-1, newRule()) }, icon('plus', 15), 'Add a rule'),
+          h('button', { class: 'btn', onclick: () => go('help') }, icon('help', 15), 'How rules work')))));
       return;
     }
     holder.replaceChildren(h('div', { class: 'card' }, shown.length ? shown.map(([r, i]) => h('div', { class: 'rule' },
@@ -1392,7 +1398,7 @@ function pageSettings(root) {
       h('div', { class: 'hint' }, 'Starts whatsgrep in the background whenever you log in, and restarts it if it stops. Link WhatsApp first (Start, then scan the code).')),
       h('div', { class: 'ctl' }, sw(val('runAtLogin'), (e) => { stage('runAtLogin', e.target.checked); renderPage(); }, 'Run at login'))),
     h('div', { class: 'setting' + chg('repeatWindowHours') }, h('div', { class: 'what' }, h('b', null, 'Ignore repeats'),
-      h('div', { class: 'hint' }, 'The same text from the same sender only notifies once in this time. 0 turns it off.')),
+      h('div', { class: 'hint' }, 'Off by default, so every match alerts you. Enter hours to alert only once for the same text from the same sender in that time.')),
       h('div', { class: 'ctl' }, h('input', { type: 'number', min: 0, step: 'any', value: val('repeatWindowHours'), 'aria-label': 'Hours', oninput: (e) => stage('repeatWindowHours', e.target.value) }), h('span', { class: 'muted' }, 'hours'))),
     h('div', { class: 'setting' + chg('browser') }, h('div', { class: 'what' }, h('b', null, 'Browser'),
       h('div', { class: 'hint' }, S.browserFound ? ['Using ', h('code', null, S.browserFound), '. Leave the path empty to detect it automatically, or set one to use a different browser.'] : 'No Chrome, Chromium, Edge or Brave found. Install one, or give its path. Leave it empty to detect automatically.')),
@@ -1406,6 +1412,60 @@ function pageSettings(root) {
       h('div', { class: 'loc' }, h('span', { class: 'k' }, 'Version'), h('span', { class: 'muted' }, S.version ? 'whatsgrep ' + S.version : 'unknown')),
       h('div', { class: 'loc' }, h('span', { class: 'k' }, 'Secrets'), h('span', { class: 'muted' }, S.keychain)),
       h('p', { class: 'hint', style: 'margin-top:8px' }, 'These are standard per-user folders, independent of any project. The session folder holds your linked WhatsApp login, so keep it private.'))));
+}
+
+// ============================================================================
+// page: help (how to write rules)
+// ============================================================================
+function pageHelp(root) {
+  const sec = (title, ...kids) => h('div', { class: 'card help' }, h('div', { class: 'head' }, h('h2', null, title)), h('div', { class: 'body' }, kids));
+  const tbl = (rows) => h('table', { class: 'helptbl' }, h('tbody', null, rows.map(([a, b, c]) => h('tr', null, h('td', null, h('b', null, a)), h('td', null, b), c !== undefined && h('td', { class: 'muted' }, c)))));
+  const recipe = (title, goal, rows) => h('div', { class: 'recipe' }, h('b', null, title), h('div', { class: 'hint' }, goal),
+    h('dl', { class: 'facts' }, rows.map(([k, v]) => [h('dt', null, k), h('dd', null, v)])));
+
+  root.append(
+    sec('How a rule works',
+      h('p', null, 'A rule has two parts, and a message must satisfy both to give you an alert:'),
+      h('ol', { class: 'how' }, h('li', null, [h('b', null, 'Where. '), 'Which chats the rule listens to: every chat, only some, or all except some.']), h('li', null, [h('b', null, 'What. '), 'What the message must say, and what rules it out.'])),
+      h('p', { class: 'hint' }, 'Capital letters never matter. Changes take effect right away, with no restart. Use the Try it panel in the rule editor to test a rule with a sample message before you save it.')),
+
+    sec('Writing the words',
+      h('p', null, 'Type a word or phrase in a box and press Enter. Several can be added at once with commas. Pick how each one should match with the dropdown next to the box:'),
+      tbl([
+        ['Whole word', 'Matches the word on its own.', 'Typing “bike” matches “a bike for sale” but not “motorbike”.'],
+        ['Part of a word', 'Matches the text anywhere, even inside a longer word.', 'Typing “book” matches “notebook” and “bookshelf”.'],
+        ['A phrase', 'Type it with spaces. Extra spaces or line breaks in the message do not matter.', '“for sale” matches “for   sale”.'],
+        ['Regex pattern', 'For advanced matching. It is a regular expression.', '“rs\\.?\\s*\\d+” matches “Rs 500” and “Rs.2500”.'],
+      ])),
+
+    sec('Combining words',
+      tbl([
+        ['Has any of these', 'The first box. One match is enough. This is “or”.', 'bike, laptop, phone: any one of them triggers the rule.'],
+        ['Also require another word', 'Adds a second box. The message must match one entry in every box. This is “and”.', 'Box 1: sell, selling. Box 2: laptop, bike. A message needs a sell-word and a thing.'],
+        ['Ignore some messages', 'If any of these appear, the message is skipped, whatever else it says.', 'buy, wtb, wanted: skips people asking to buy.'],
+      ]),
+      h('p', { class: 'hint' }, 'Leave the word boxes empty to alert on every message from the chats you chose.')),
+
+    sec('Choosing chats',
+      tbl([
+        ['All chats', 'The rule listens everywhere.'],
+        ['Only these chats', 'Add the chats to listen to. Use “Pick from my chats” to choose from your real list.'],
+        ['All except these chats', 'Listens everywhere apart from the chats you add.'],
+      ]),
+      h('p', null, 'Each chat can be matched in several ways: its exact name, part of its name, its phone number (any format; the country code is optional), or its chat ID, which keeps working if the chat is renamed.')),
+
+    sec('Ideas, step by step',
+      h('div', { class: 'recipes' },
+        recipe('Sale posts, not buyers', 'Alert when someone is selling, and skip people asking to buy.', [['Chats', 'Only the buy and sell groups'], ['Has any of', 'leave empty'], ['Also require', 'sell, selling, for sale'], ['Ignore', 'buy, wtb, wanted']]),
+        recipe('Any mention of a word', 'Alert whenever a word comes up anywhere.', [['Chats', 'All chats'], ['Has any of', 'the word you care about']]),
+        recipe('Everything in one chat', 'Alert for every message in a single group or contact.', [['Chats', 'Only these chats, then add it'], ['Words', 'leave empty']]),
+        recipe('Everything except a noisy group', 'Listen widely but mute one chat.', [['Chats', 'All except these chats, then add the noisy one'], ['Has any of', 'your words']]),
+        recipe('A price', 'Alert on messages that mention an amount.', [['Has any of', 'a Regex pattern: rs\\.?\\s*\\d+']]))),
+
+    sec('Alerts and repeats',
+      h('p', null, [h('b', null, 'Loudness. '), 'Silent, Low, Normal, High and Urgent change how strongly phone alerts buzz. On Linux they also set the urgency of desktop pop-ups.']),
+      h('p', null, [h('b', null, 'Repeats. '), 'Every matching message alerts you. If the same person posts the same text again and you do not want a second alert, set hours under Settings, Ignore repeats.']),
+      h('p', null, [h('b', null, 'History. '), 'Every match is listed on the Notifications page, where you can search and filter it.'])));
 }
 
 // ============================================================================
@@ -1441,6 +1501,7 @@ async function renderPage() {
     else if (tab === 'notifications') await pageHistory(root);
     else if (tab === 'delivery') await pageNotifications(root);
     else if (tab === 'settings') pageSettings(root);
+    else if (tab === 'help') pageHelp(root);
     else await pageAdvanced(root);
   } catch (e) { root.append(h('div', { class: 'alert bad' }, icon('alert'), h('div', null, h('b', null, 'Something went wrong'), h('span', null, e.message)))); }
   if (id !== renderId) return;

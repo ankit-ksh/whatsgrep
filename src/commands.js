@@ -6,7 +6,6 @@ import { isMap, parse, parseDocument, stringify } from 'yaml';
 import { hasMessageCondition, matchesMessage } from './matcher.js';
 import { parseConfig } from './config.js';
 import { manageService } from './service.js';
-import { getAsset } from './sea.js';
 import { readStatus } from './status.js';
 import { forgetTopic, savedTopic } from './state.js';
 import { migrate } from './migrate.js';
@@ -40,11 +39,17 @@ function parseValue(raw, key) {
   return parse(raw);
 }
 
-export function exampleText() {
-  const bundled = getAsset('config.example.yaml');
-  if (bundled) return bundled;
-  return readFileSync(new URL('../config.example.yaml', import.meta.url), 'utf8');
-}
+// A new config starts with no rules and nothing pre-filled. The Help page explains how to write them.
+export const defaultConfigText = () => `# whatsgrep config. The interface edits this file for you.
+# Rules are added on the Rules page; the Help page explains how to write them.
+
+notifications: [desktop]
+
+settings:
+  repeat_window_hours: 0
+
+rules: []
+`;
 
 function load(file) {
   if (!existsSync(file)) throw new Error(`no config at ${file}. Create one with: config init`);
@@ -80,7 +85,7 @@ function configCommand(args, ctx) {
     case 'init': {
       if (existsSync(file)) return `${file} already exists`;
       mkdirSync(dirname(file), { recursive: true });
-      writeFileSync(file, exampleText());
+      writeFileSync(file, defaultConfigText());
       return `Created ${file}. Edit it with: config edit`;
     }
     case 'edit': { editor(file); return ''; }

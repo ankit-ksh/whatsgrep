@@ -7,7 +7,7 @@ export const DEFAULT_SERVER = 'https://ntfy.sh';
 // Sections: `notifications` (methods), `ntfy` (server), `settings` (repeat_window_hours), `rules`.
 export function parseConfig(text) {
   const doc = parse(text) ?? {};
-  const hours = doc.settings?.repeat_window_hours ?? 6;
+  const hours = doc.settings?.repeat_window_hours ?? 0;
   if (typeof hours !== 'number' || hours < 0) throw new Error('settings.repeat_window_hours must be a number >= 0');
   const methods = doc.notifications ?? ['ntfy'];
   if (!Array.isArray(methods) || methods.some((m) => !METHODS.includes(m))) {
