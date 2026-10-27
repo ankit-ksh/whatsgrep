@@ -300,6 +300,7 @@
   .pickrows { max-height: 52vh; overflow: auto; border: 1px solid var(--line); border-radius: 10px; margin-top: 8px; }
   .pickrow { display: flex; gap: 10px; align-items: center; padding: 9px 12px; }
   .pickrow + .pickrow { border-top: 1px solid var(--line); }
+  .pickrow.added { background: var(--accent-soft); }
   .pickrow .who { flex: 1; min-width: 0; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .pickrow .who b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
   .pickrow select { width: 150px; height: 32px; flex: none; }
@@ -1027,17 +1028,25 @@ async function chatPicker(list, onAdd) {
       const kinds = kindsFor(c);
       const sel = h('select', { 'aria-label': 'How to match ' + (c.name || c.id) }, kinds.map(([, l], i) => h('option', { value: i }, l)));
       const btn = h('button', { class: 'btn sm primary' }, 'Add');
+      const row = h('div', { class: 'pickrow' });
+      const current = () => { const [kind, , value] = kinds[Number(sel.value)]; return { kind, value, at: list.findIndex((e) => e.kind === kind && e.value === value) }; };
       const state = () => {
-        const [kind, , value] = kinds[Number(sel.value)];
-        const has = list.some((e) => e.kind === kind && e.value === value);
-        btn.disabled = has; btn.textContent = has ? 'Added ✓' : 'Add';
+        const has = current().at >= 0;
+        btn.className = 'btn sm' + (has ? '' : ' primary');
+        btn.textContent = has ? 'Remove' : 'Add';
+        row.classList.toggle('added', has);
       };
       sel.addEventListener('change', state);
-      btn.addEventListener('click', () => { const [kind, , value] = kinds[Number(sel.value)]; list.push({ kind, value }); onAdd(); state(); });
+      btn.addEventListener('click', () => {
+        const c = current();
+        if (c.at >= 0) list.splice(c.at, 1); else list.push({ kind: c.kind, value: c.value });
+        onAdd(); state();
+      });
       state();
-      return h('div', { class: 'pickrow' },
+      row.append(
         h('div', { class: 'who' }, h('b', null, c.name || (c.phone ? '+' + c.phone : c.id)), h('span', { class: 'badge' }, c.group ? 'Group' : 'Contact'), c.phone && c.name && h('span', { class: 'hint' }, '+' + c.phone)),
         sel, btn);
+      return row;
     }));
   }
   draw();
