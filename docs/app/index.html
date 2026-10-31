@@ -18,14 +18,22 @@
 <body>
 <div class="wrap">
   <header class="top">
-    <div class="brand"><span class="mark" id="mark"></span><b>whatsgrep</b></div>
+    <button class="btn ghost icon back" id="back" aria-label="Back" hidden></button>
+    <div class="brand"><span class="mark" id="mark"></span><b id="title">whatsgrep</b></div>
     <span class="tstatus" id="status" hidden><span class="d"></span><span id="statustext"></span></span>
   </header>
-  <nav class="tabs" id="tabs" hidden>
-    <button data-tab="alerts" class="on"></button>
-    <button data-tab="pair"></button>
-  </nav>
   <main id="main"></main>
+</div>
+<nav class="tabbar" id="tabs" hidden>
+  <button data-tab="alerts"></button>
+  <button data-tab="computers"></button>
+</nav>
+<div class="scan" id="scan" hidden>
+  <video id="video" playsinline muted></video>
+  <div class="frame"></div>
+  <p class="scanmsg" id="scanmsg"></p>
+  <button class="btn" id="scanalt">Use the code instead</button>
+  <button class="btn icon scanx" id="scanclose" aria-label="Close"></button>
 </div>
 <div class="toast" id="toast" hidden></div>
 <script src="db.js"></script>
