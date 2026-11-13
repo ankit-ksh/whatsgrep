@@ -1,7 +1,7 @@
 // Receives the encrypted pushes (the browser decrypts them), keeps them, and shows them.
 importScripts('db.js');
 
-const SHELL = 'whatsgrep-shell-v2';
+const SHELL = 'whatsgrep-shell-v3';
 const FILES = ['./', 'index.html', 'app.css', 'app.js', 'db.js', 'vendor/jsQR.js', 'icon-192.png'];
 
 self.addEventListener('install', (e) => {
@@ -38,7 +38,8 @@ self.addEventListener('push', (e) => {
   try { m = e.data.json(); } catch { m = { t: 'alert', title: 'whatsgrep', body: e.data ? e.data.text() : '' }; }
   e.waitUntil((async () => {
     const computers = await noteComputer(m.computer, m.t === 'alert');
-    if (m.t === 'alert') await WG.add({ title: m.title, body: m.body, rule: m.rule, chat: m.chat, tracker: m.tracker, computer: m.computer && m.computer.name, at: m.at || Date.now(), got: Date.now() });
+    // A test shows up in the list too, so you can tell the whole path works.
+    if (m.t === 'alert' || m.t === 'test') await WG.add({ title: m.title, body: m.body, rule: m.rule, chat: m.chat, tracker: m.tracker, computer: m.computer && m.computer.name, at: m.at || Date.now(), got: Date.now() });
     if (m.t === 'paired') await WG.set('paired', true);
     for (const c of await self.clients.matchAll({ type: 'window', includeUncontrolled: true })) c.postMessage({ t: m.t });
     // With more than one computer, say which one this is from. Browsers require every push to show something.
@@ -57,9 +58,10 @@ self.addEventListener('push', (e) => {
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
   e.waitUntil((async () => {
-    const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    if (all.length) return all[0].focus();
-    return self.clients.openWindow('./');
+    // Only this app's own window: other pages of this site can be open in a tab too.
+    const mine = (await self.clients.matchAll({ type: 'window', includeUncontrolled: true })).filter((c) => c.url.startsWith(self.registration.scope));
+    if (mine.length) { try { return await mine[0].focus(); } catch {} }
+    return self.clients.openWindow(self.registration.scope);
   })());
 });
 

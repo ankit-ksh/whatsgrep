@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>whatsgrep · Never miss the message that matters</title>
-<meta name="description" content="whatsgrep watches the WhatsApp chats you choose and alerts you when a message matches your rules. Free and open source for Windows, macOS and Linux.">
+<meta name="description" content="whatsgrep watches the WhatsApp chats and email you choose and alerts you when a message matches your rules. Free and open source for Windows, macOS and Linux.">
 <meta name="theme-color" content="#0b0d10">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <meta property="og:title" content="whatsgrep · Never miss the message that matters">
-<meta property="og:description" content="Get alerted when a WhatsApp message matches your rules. Free and open source.">
+<meta property="og:description" content="Get alerted when a WhatsApp message or an email matches your rules. Free and open source.">
 <meta property="og:image" content="assets/overview.png">
 <style>
   :root { --bg: #0b0d10; --ink: #f4f6f8; --muted: #8e99a8; --line: #1d2229; --card: #12161b; --accent: #2fd08f; --accent-ink: #04170f; }
@@ -72,6 +72,11 @@
   .chip.no { background: rgba(255,107,107,.12); color: #ff8c8c; }
   .chip.chat { background: #1a2028; color: var(--ink); }
 
+  .trackers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; max-width: 760px; margin: 44px auto 0; text-align: left; }
+  .trk { display: flex; gap: 14px; align-items: center; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px 20px; }
+  .trk .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 5px rgba(47,208,143,.14); flex: none; }
+  .trk b { display: block; font-size: 16px; } .trk small { color: var(--muted); font-size: 13px; }
+  @media (max-width: 800px) { .trackers { grid-template-columns: 1fr; } }
   .shot { margin: 36px auto 0; width: min(920px, 100%, max(420px, calc((100svh - 440px) * 1.6))); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; box-shadow: 0 50px 120px -30px rgba(0,0,0,.9); }
   .shot img { display: block; width: 100%; height: auto; }
 
@@ -99,7 +104,7 @@
   <section id="top" data-name="Start">
     <div class="inner">
       <h1 class="reveal">Never miss the message that matters.</h1>
-      <p class="lead reveal">whatsgrep watches the WhatsApp chats you choose and alerts you the moment a message matches your rules.</p>
+      <p class="lead reveal">whatsgrep watches the WhatsApp chats and email accounts you choose and alerts you the moment a message matches your rules.</p>
     </div>
     <div class="cue">Scroll</div>
   </section>
@@ -107,8 +112,8 @@
   <section data-name="Problem">
     <div class="inner">
       <p class="kicker reveal">The problem</p>
-      <h2 class="reveal">Busy groups bury the one message you wanted.</h2>
-      <p class="lead reveal">Buy and sell groups, job boards, deal channels. You refresh them all day, just in case.</p>
+      <h2 class="reveal">Busy groups and a full inbox bury the one message you wanted.</h2>
+      <p class="lead reveal">Buy and sell groups, job boards, invoices, the one reply you are waiting for. You refresh them all day, just in case.</p>
       <div class="chats reveal" aria-hidden="true">
         <div class="msg dim"><small>Group</small>Anyone going to the market tomorrow?</div>
         <div class="msg hit"><small>Group</small>Selling a <mark>standing desk</mark>, barely used, 6000</div>
@@ -122,9 +127,9 @@
       <p class="kicker reveal">How it works</p>
       <h2 class="reveal">Three steps. Then forget about it.</h2>
       <div class="steps reveal">
-        <div class="step"><i>1</i><b>Link WhatsApp</b><p>Scan one QR code, the same way you link WhatsApp Web.</p></div>
-        <div class="step"><i>2</i><b>Write your rules</b><p>Choose the chats and the words that count. Test them as you type.</p></div>
-        <div class="step"><i>3</i><b>Get the alert</b><p>A desktop notification, a phone push, or both, the moment it matches.</p></div>
+        <div class="step"><i>1</i><b>Add what to watch</b><p>Scan a QR code for WhatsApp, or add an email account. Add as many as you like.</p></div>
+        <div class="step"><i>2</i><b>Write your rules</b><p>Choose the senders, chats and words that count. Test them as you type.</p></div>
+        <div class="step"><i>3</i><b>Get the alert</b><p>A desktop notification, a push to your devices, or both, the moment it matches.</p></div>
       </div>
     </div>
   </section>
@@ -142,12 +147,38 @@
     </div>
   </section>
 
+  <section data-name="Email">
+    <div class="inner">
+      <p class="kicker reveal">Email</p>
+      <h2 class="reveal">Filters like the ones you know.</h2>
+      <p class="lead reveal">Sender, subject, attachments, size, newsletters, working hours. Alerts land within a second of the mail arriving, not whenever your phone syncs.</p>
+      <div class="rule reveal" aria-hidden="true">
+        <div class="row"><span>From</span><b class="chip chat">@company.com</b></div>
+        <div class="row"><span>Subject has</span><b class="chip">invoice</b><b class="chip">payment due</b></div>
+        <div class="row"><span>And also</span><b class="chip">has a PDF</b><b class="chip">larger than 100 KB</b><b class="chip">not a newsletter</b><b class="chip">Mon to Fri, 09:00 to 18:00</b></div>
+      </div>
+    </div>
+  </section>
+
+  <section data-name="Accounts">
+    <div class="inner">
+      <p class="kicker reveal">Trackers</p>
+      <h2 class="reveal">As many accounts as you have.</h2>
+      <p class="lead reveal">Each WhatsApp number and each mailbox is its own tracker. Every rule picks which ones it listens to.</p>
+      <div class="trackers reveal" aria-hidden="true">
+        <div class="trk"><span class="dot"></span><div><b>WhatsApp</b><small>+1 555 0100 123</small></div></div>
+        <div class="trk"><span class="dot"></span><div><b>Work Gmail</b><small>alex@gmail.com</small></div></div>
+        <div class="trk"><span class="dot"></span><div><b>Home Outlook</b><small>alex@outlook.com</small></div></div>
+      </div>
+    </div>
+  </section>
+
   <section data-name="Interface">
     <div class="inner">
       <p class="kicker reveal">The interface</p>
       <h2 class="reveal">Everything in one clear screen.</h2>
-      <p class="lead reveal">No config files to edit. Rules, chats, alerts and history, all in your browser.</p>
-      <div class="shot reveal"><img src="assets/overview.png" width="1280" height="800" loading="lazy" alt="The whatsgrep interface showing the linked account and recent matches"></div>
+      <p class="lead reveal">No config files to edit. Trackers, rules, alerts and history, all in your browser.</p>
+      <div class="shot reveal"><img src="assets/overview.png" width="1280" height="800" loading="lazy" alt="The whatsgrep interface showing a linked WhatsApp account, two email accounts and recent matches"></div>
     </div>
   </section>
 
@@ -158,7 +189,7 @@
       <p class="lead reveal">On your computer, on your phone, or both. Every match is kept in a searchable history.</p>
       <div class="toasts reveal" aria-hidden="true">
         <div class="toast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg><div><b>Desktop</b><span>Native notification on Windows, macOS or Linux</span></div></div>
-        <div class="toast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg><div><b>Phone</b><span>Instant push through ntfy, optional</span></div></div>
+        <div class="toast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg><div><b>Devices</b><span>Instant, encrypted push, optional</span></div></div>
       </div>
     </div>
   </section>
@@ -167,7 +198,7 @@
     <div class="inner">
       <p class="kicker reveal">Private by design</p>
       <h2 class="reveal">It only listens.</h2>
-      <p class="lead reveal">Runs on your machine and starts at login. Nothing goes to a server of ours, and it never sends a message.</p>
+      <p class="lead reveal">Runs on your machine and starts at login. Email is read-only, passwords stay in your computer’s keychain, nothing goes to a server of ours, and it never sends a message.</p>
     </div>
   </section>
 

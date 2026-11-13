@@ -1,11 +1,16 @@
 # whatsgrep config. Copy to config.yaml and edit:  cp config.example.yaml config.yaml
 # Saving the file reloads it automatically. A broken edit keeps the old rules.
 
-notifications: [desktop, ntfy]   # where alerts go: desktop (this computer), ntfy (phone). Any subset.
-                               # Needs a restart to change. desktop uses notify-send on Linux.
+notifications: [desktop, devices]   # where alerts go: desktop (this computer), devices (phones, tablets and laptops, encrypted). Any subset.
+                               # desktop uses notify-send on Linux.
+                               # Pair a device under Delivery in the interface, or: whatsgrep devices pair
 
-ntfy:                          # only used when ntfy is listed above
-  server: https://ntfy.sh      # your ntfy server
+trackers:                      # what to watch. Leave this out for one WhatsApp account, as before.
+  - {name: WhatsApp, type: whatsapp}
+  # An email account. The password is kept in your OS keychain, never in this file.
+  # - {name: Work Gmail, type: email, user: you@gmail.com, provider: gmail}
+  #   provider: gmail | outlook | yahoo | icloud | fastmail | other (then also give host:)
+  #   folders: [INBOX]            folders to watch (default INBOX)
 
 settings:
   repeat_window_hours: 0       # 0 = every match alerts. Set hours to alert once per sender and text in that time
@@ -65,3 +70,20 @@ rules:
 # a plain entry like "Mess" is exact; "contains:x" / "re:x" prefixes also work;
 # `none` is an older name for `exclude`.
 # ----------------------------------------------------------------------------
+
+  # Email rules say which tracker they listen to with `on:` ("all", or a list of tracker names).
+  # A rule without `on:` listens to WhatsApp only. These conditions go under `email:`.
+  # - name: invoices
+  #   on: [Work Gmail]
+  #   from: {contains: ["@company.com"]}      # sender name or address
+  #   message: {any: [invoice, "payment due"]} # subject and body
+  #   email:
+  #     to: {any: [sales@yourcompany.com]}
+  #     subject: {exclude: [newsletter]}
+  #     attachment: [pdf]                      # true | false | file types or contains:name
+  #     larger_than: 100KB
+  #     smaller_than: 20MB
+  #     not_bulk: true                         # skip newsletters, mailing lists, auto-replies
+  #     verified: true                         # the sender passed SPF/DKIM/DMARC
+  #     important: true                        # marked high priority
+  #     during: {days: [mon, tue, wed, thu, fri], from: "09:00", to: "18:00"}

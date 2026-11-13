@@ -19,7 +19,17 @@ export function appDirs(platform = process.platform, env = process.env, home = h
 
 // A flag wins, otherwise the per-user folders. Never the current directory, so it behaves the
 // same wherever it is started from (a terminal, a service, a double-click).
+export const PROFILE_RE = /^[a-z0-9][a-z0-9-]{0,30}$/i;
+
+// A profile is a self-contained copy of whatsgrep (own config, sessions and keychain entries) for
+// trying things out next to a real install. Folders sit beside the real ones.
+export function profileDirs(name, dirs = appDirs()) {
+  if (!PROFILE_RE.test(name)) throw new Error(`invalid profile name "${name}" (letters, digits and dashes, up to 31 characters)`);
+  return { data: `${dirs.data}-${name}`, config: `${dirs.config}-${name}` };
+}
+
 export function defaultPaths(opt, dirs = appDirs()) {
+  if (opt.profile) dirs = profileDirs(opt.profile, dirs);
   return {
     config: resolve(opt.config ?? join(dirs.config, 'config.yaml')),
     dataDir: resolve(opt['data-dir'] ?? dirs.data),
@@ -33,3 +43,7 @@ export function legacyFiles(cwd = process.cwd()) {
     data: existsSync(join(cwd, '.whatsgrep')) ? join(cwd, '.whatsgrep') : null,
   };
 }
+
+// Each tracker keeps its own files (login session, linked account, chat list). The first WhatsApp
+// account keeps using the data folder itself, so sessions saved by earlier versions still work.
+export const trackerDir = (dataDir, tracker) => (tracker.id === 'whatsapp' && tracker.type === 'whatsapp' ? dataDir : join(dataDir, 'trackers', tracker.id));

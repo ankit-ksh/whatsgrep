@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { appDirs } from '../src/paths.js';
-import { findBrowser } from '../src/browser.js';
-import { launchdPlist, systemdUnit, windowsTaskXml } from '../src/service.js';
-import { backendFor } from '../src/secrets.js';
-import { tokenize } from '../src/shell.js';
+import { appDirs } from '../src/core/paths.js';
+import { findBrowser } from '../src/system/browser.js';
+import { launchdPlist, systemdUnit, windowsTaskXml } from '../src/system/service.js';
+import { backendFor } from '../src/core/secrets.js';
+import { tokenize } from '../src/commands/shell.js';
 
 test('per-user folders follow each OS convention', () => {
   assert.deepEqual(appDirs('linux', {}, '/h'), { data: '/h/.local/share/whatsgrep', config: '/h/.config/whatsgrep' });
@@ -54,7 +54,7 @@ test('secrets backends call the native tools without leaking values into scripts
 
 test('shell input is split like a shell line', () => {
   assert.deepEqual(tokenize('rules add "my rule" --any "a b"'), ['rules', 'add', 'my rule', '--any', 'a b']);
-  assert.deepEqual(tokenize('config set notifications desktop,ntfy'), ['config', 'set', 'notifications', 'desktop,ntfy']);
+  assert.deepEqual(tokenize('config set notifications desktop,devices'), ['config', 'set', 'notifications', 'desktop,devices']);
   assert.deepEqual(tokenize('rules remove "my rule"'), ['rules', 'remove', 'my rule']);
 });
 
@@ -62,7 +62,7 @@ test('an installed service is current only when it matches the folders in use', 
   const { mkdtempSync, mkdirSync, writeFileSync } = await import('node:fs');
   const { tmpdir } = await import('node:os');
   const { join } = await import('node:path');
-  const { serviceIsCurrent, launchCommand } = await import('../src/service.js');
+  const { serviceIsCurrent, launchCommand } = await import('../src/system/service.js');
   const dir = mkdtempSync(join(tmpdir(), 'wg-svc-'));
   const old = process.env.XDG_CONFIG_HOME;
   process.env.XDG_CONFIG_HOME = dir;

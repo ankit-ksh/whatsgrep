@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { compileRule, matches } from '../src/matcher.js';
+import { compileRule, matches } from '../src/core/rule.js';
 
 const rule = compileRule({
   name: 'coupon',

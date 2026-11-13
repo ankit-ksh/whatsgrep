@@ -1,4 +1,4 @@
-# your rules, WhatsApp session and ntfy topic: never commit these
+# your rules, WhatsApp session and paired phones: never commit these
 config.yaml
 .whatsgrep/
 # old session folder name, remove the next line once renamed

@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, userInfo } from 'node:os';
 import { dirname, join } from 'node:path';
-import { isPackaged } from './sea.js';
+import { isPackaged } from '../core/sea.js';
 
 const NAME = 'whatsgrep';
 

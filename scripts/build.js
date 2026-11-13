@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { chmodSync, copyFileSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { buildUiHtml } from '../src/ui/build.js';
 
 const win = process.platform === 'win32';
 const mac = process.platform === 'darwin';
@@ -28,7 +29,7 @@ await build({
   legalComments: 'none',
   alias: { puppeteer: 'puppeteer-core' },
   define: { __WG_VERSION__: JSON.stringify(JSON.parse(readFileSync('package.json', 'utf8')).version) },
-  external: ['@aws-sdk/client-s3'], // optional S3 support inside unzipper, never used here
+  external: ['@aws-sdk/client-s3', 'x11', 'abstract-socket', 'esbuild'], // optional pieces of unzipper and dbus-next, never used here
   // CommonJS dependencies expect require, __filename and __dirname to exist.
   banner: { js: [
     "import { createRequire as __cr } from 'node:module';",
@@ -38,6 +39,9 @@ await build({
   ].join('\n') },
   logLevel: 'warning',
 });
+
+// The interface page: a React app bundled into one HTML file.
+writeFileSync(join(out, 'ui.html'), await buildUiHtml());
 
 // 2. SEA's entry must be CommonJS, so a small stub unpacks the ESM bundle (cached by content
 //    hash in the temp folder) and imports it.
@@ -60,7 +64,7 @@ writeFileSync(join(out, 'sea-config.json'), JSON.stringify({
   main: join(out, 'stub.cjs'),
   output: join(out, 'sea.blob'),
   disableExperimentalSEAWarning: true,
-  assets: { 'bundle.mjs': join(out, 'bundle.mjs'), 'config.example.yaml': 'config.example.yaml', 'ui.html': join('src', 'ui', 'index.html') },
+  assets: { 'bundle.mjs': join(out, 'bundle.mjs'), 'config.example.yaml': 'config.example.yaml', 'ui.html': join(out, 'ui.html') },
 }));
 execFileSync(process.execPath, ['--experimental-sea-config', join(out, 'sea-config.json')], { stdio: 'inherit' });
 copyFileSync(process.execPath, exe);
@@ -76,5 +80,5 @@ execFileSync(process.execPath, [
 ], { stdio: 'inherit' });
 if (mac) execFileSync('codesign', ['--sign', '-', exe], { stdio: 'inherit' });
 
-for (const f of ['bundle.mjs', 'stub.cjs', 'sea-config.json', 'sea.blob']) rmSync(join(out, f));
+for (const f of ['bundle.mjs', 'stub.cjs', 'sea-config.json', 'sea.blob', 'ui.html']) rmSync(join(out, f));
 console.log(`Built ${exe}`);

@@ -1,22 +1,15 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { pushToDevices } from './devices.js';
 
 const run = promisify(execFile);
 
-export const METHODS = ['desktop', 'ntfy'];
+export const METHODS = ['desktop', 'devices'];
 
-// JSON publish keeps non-ASCII titles/messages (emoji, Hindi, ...) intact.
-async function ntfy({ server, topic, title, message, priority, tags }) {
-  const res = await fetch(server, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ topic, title, message, priority: priorityNum(priority), tags }),
-  });
-  if (!res.ok) throw new Error(`ntfy responded ${res.status}`);
+// Devices: an encrypted Web Push to every paired device (see webpush.js).
+async function devices({ dataDir, title, message, priority, rule, tracker, chat }) {
+  await pushToDevices(dataDir, { t: 'alert', title, body: message, rule, tracker, chat, at: Date.now() }, { priority });
 }
-
-const LEVELS = { min: 1, low: 2, default: 3, high: 4, urgent: 5 };
-const priorityNum = (p) => LEVELS[p] ?? 3;
 
 // Native notification: notify-send (Linux), osascript (macOS), a PowerShell toast (Windows).
 // Title/message are passed as arguments or env vars, never spliced into script text.
@@ -42,7 +35,7 @@ async function desktop({ title, message, priority }) {
   }
 }
 
-const SENDERS = { ntfy, desktop };
+const SENDERS = { devices, desktop };
 
 // Sends through every enabled method; one failing doesn't stop the others.
 export async function notify(methods, payload) {

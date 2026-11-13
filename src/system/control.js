@@ -2,15 +2,15 @@ import { spawn } from 'node:child_process';
 import { closeSync, mkdirSync, openSync, readFileSync, statSync, truncateSync } from 'node:fs';
 import { join } from 'node:path';
 import { isServiceInstalled, launchCommand, manageService, serviceIsCurrent } from './service.js';
-import { readStatus } from './status.js';
+import { readStatus } from '../core/status.js';
 
 export const logFile = (dataDir) => join(dataDir, 'whatsgrep.log');
 
 // Starts the tracker: through the OS service when it is installed, otherwise as a detached
 // background process that logs to the data folder.
-export function startTracker({ dataDir, serviceArgs }) {
+export function startTracker({ dataDir, serviceArgs, profile }) {
   if (readStatus(dataDir)?.running) return 'already running';
-  if (isServiceInstalled()) {
+  if (!profile && isServiceInstalled()) {
     // A service from an older version may still point at old folders: rewrite it for these ones.
     if (!serviceIsCurrent(serviceArgs, dataDir)) { manageService('install', { args: serviceArgs, dataDir }); return 'updated the background service and started it'; }
     return manageService('start', { args: serviceArgs, dataDir }).trim();
@@ -27,12 +27,20 @@ export function startTracker({ dataDir, serviceArgs }) {
   return 'started';
 }
 
-export function stopTracker({ dataDir, serviceArgs }) {
+export function stopTracker({ dataDir, serviceArgs, profile }) {
   const s = readStatus(dataDir);
   if (!s?.running) return 'not running';
-  if (isServiceInstalled()) return manageService('stop', { args: serviceArgs, dataDir }).trim();
+  if (!profile && isServiceInstalled()) return manageService('stop', { args: serviceArgs, dataDir }).trim();
   process.kill(s.pid, 'SIGTERM');
   return 'stopped';
+}
+
+// Stop, wait for the old process to go away, then start again.
+// The wait must not block: a tracker this process started is only reaped when the event loop runs.
+export async function restartTracker(opts) {
+  stopTracker(opts);
+  for (let i = 0; i < 100 && readStatus(opts.dataDir)?.running; i++) await new Promise((r) => setTimeout(r, 100));
+  return startTracker(opts);
 }
 
 export function tailLog(dataDir, lines = 200) {

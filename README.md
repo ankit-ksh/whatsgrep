@@ -1,11 +1,12 @@
 # whatsgrep
 
-Watch selected WhatsApp chats for keyword patterns and get a push notification on your phone or desktop the moment one matches. No more refreshing busy buy/sell, jobs or deals groups.
+Watch selected WhatsApp chats and email accounts for keyword patterns and get a notification on your desktop or phone the moment one matches. No more refreshing busy buy/sell, jobs or deals groups, or an inbox.
 
 - Set it up in a friendly local web page (`whatsgrep ui`) or in plain YAML: which chats, which words must appear, which words rule a message out.
-- Notifications go to your desktop (Linux, macOS, Windows) and/or through [ntfy](https://ntfy.sh) to your phone, with no account. Pick with `notifications` in the config.
-- Log in to WhatsApp once with a QR code, then let it run in the background from login.
-- It only listens. It never sends WhatsApp messages and sends no phone numbers to ntfy.
+- Notifications go to your desktop (Linux, macOS, Windows) and/or to your phones, tablets and laptops as encrypted push alerts, with no account and no server of ours. Pick with `notifications` in the config.
+- Log in to WhatsApp once with a QR code, and/or add email accounts. Add as many of each as you like; every rule picks which ones it listens to. Then let it run in the background from login.
+- Email is read over IMAP with mail-client-style filters (sender, subject, attachments, size, newsletters, hours). See [Trackers and email](#trackers-and-email).
+- It only listens. It never sends WhatsApp messages, never changes your mail, and sends nothing readable to anyone: alerts to your devices are encrypted on your computer, so Google's and Apple's push servers only carry unreadable bytes.
 
 > **Unofficial.** whatsgrep uses [whatsapp-web.js](https://github.com/pedroslopez/whatsapp-web.js), which automates WhatsApp Web. This is against WhatsApp's terms and accounts that automate can be restricted. whatsgrep only reads messages, which is lower risk than sending, but consider using a secondary number. Use at your own risk.
 
@@ -58,13 +59,14 @@ Save the `.exe` somewhere permanent (the startup task points at it), then in Pow
 ## How it works
 
 ```
-WhatsApp Web (headless Chromium)  ->  your rules  ->  desktop notification and/or ntfy -> phone
+WhatsApp Web (headless Chromium)  \
+Email (IMAP, kept open)           /->  your rules  ->  desktop notification and/or encrypted push -> your devices
 ```
 
 ### What happens when you run it
 
 1. **Load config.** `config.yaml` is read and validated. If it is missing or invalid, whatsgrep exits with an error. A valid config starts a file watcher so later edits reload live.
-2. **Topic.** The ntfy topic is resolved (see [The ntfy topic](#the-ntfy-topic)) and printed, with a subscribe QR code if it is new.
+2. **Devices.** If device alerts are on and none is paired yet, it says so (see [Alerts on your devices](#alerts-on-your-devices)).
 3. **WhatsApp login.** A headless Chromium opens WhatsApp Web. The first time (or after the session expires) it shows a QR code to scan. Otherwise it restores the saved session from the data folder (see [Run it as a program](#run-it-as-a-program)).
 4. **Listening.** When it prints `Listening`, every new message that arrives is checked. Messages sent before this point, or while whatsgrep is not running, are never seen. whatsgrep does not read history.
 5. **Stop.** Ctrl+C closes the browser cleanly. The session stays saved.
@@ -82,17 +84,20 @@ For every new message, in order:
    - `message`: the text passes by the same three tests, on words.
    - A rule must have something to look for: `message.any` / `message.all`, or `from.any` / `from.all`. Otherwise it is rejected at load time, since it would fire on everything. `message` itself is optional.
 6. **Repeat filter:** if the same sender sent the same text for the same rule within `repeat_window_hours`, it is dropped silently. The window slides, so a sender who keeps repeating the message every few hours is never notified again until they stop for a full window. This also applies in `--dry-run`.
-7. **Notify:** the match is printed to the terminal as `[rule] chat: text`. Unless `--dry-run`, it is then sent to every method in `notifications` (desktop and/or ntfy) as title `rule · chat`, body the full message text, with the rule's priority. If a method fails the error is logged and the remaining rules still run.
+7. **Notify:** the match is printed to the terminal as `[rule] chat: text`. Unless `--dry-run`, it is then sent to every method in `notifications` (desktop and/or devices) as title `rule · chat`, body the full message text, with the rule's priority. If a method fails the error is logged and the remaining rules still run.
 
 One message can fire several rules, and you get one notification per rule.
 
-### What is live and what needs a restart
+### What applies right away
 
 | Change | Takes effect |
 |---|---|
-| Rules, `settings.repeat_window_hours` in `config.yaml` | On save, within about half a second |
+| Rules, `notifications`, `settings.repeat_window_hours` in `config.yaml` | On save, within about half a second |
+| Adding, removing, turning off or changing a tracker | On save: only that tracker restarts |
 | An invalid saved config | Ignored with a warning, previous settings stay active |
-| `notifications`, `ntfy.server`, `--topic`, `--server`, `--dry-run`, `--verbose` | After restart |
+| `browser` | On save: WhatsApp trackers restart to use it |
+| Command-line flags such as `--dry-run`, `--verbose` | Only when whatsgrep is started |
+| Pairing or removing a device | Immediately |
 | Your WhatsApp login | Persisted; restart not needed to keep it |
 
 ## Requirements
@@ -100,7 +105,7 @@ One message can fire several rules, and you get one notification per rule.
 - Node.js 20 or newer
 - Linux, macOS or Windows (a Chromium is downloaded by Puppeteer on `npm install`)
 - A WhatsApp account that can link a device
-- The [ntfy app](https://ntfy.sh) on your phone (optional but the point)
+- A device for alerts: Chrome, Edge or Firefox on Android, Windows, Mac or Linux, or Safari on iPhone (iOS 16.4 or later) (optional but the point)
 
 ## Quick start
 
@@ -112,7 +117,7 @@ npm start -- --dry-run --verbose      # first run: scan the QR, watch matches pr
 ```
 
 1. **Link WhatsApp.** A QR code appears. In WhatsApp go to Settings > Linked devices > Link a device and scan it. The session is saved in the data folder, so later runs log in automatically.
-2. **Subscribe on your phone.** whatsgrep prints a second, smaller QR for your ntfy topic. Scan it with your phone camera to open the ntfy app and subscribe. Or add the printed topic by hand: in the ntfy app tap **+**, paste the topic, keep the server as `ntfy.sh`.
+2. **Pair a device.** Run `npm start -- devices pair` (or **Delivery > Add device** in the interface) and follow [Alerts on your devices](#alerts-on-your-devices).
 3. **Check your rules.** With `--dry-run` matches print in the terminal and nothing is sent. `--verbose` prints every incoming message with its chat name and id, so you can see what to put in `from:`.
 4. **Go live.** Stop with Ctrl+C and run `npm start`.
 
@@ -127,29 +132,32 @@ npm start -- [options]
 | Option | Meaning |
 |---|---|
 | `-c, --config <file>` | Rules file. Default `config.yaml` in the per-user config folder |
-| `-t, --topic <value>` | Use this ntfy topic. Default is a new random topic every run |
-| `-r, --resume` | Reuse the ntfy topic from the last run |
-| `-s, --server <url>` | ntfy server. Overrides `ntfy.server` in the config. Default `https://ntfy.sh` |
-| `-d, --data-dir <dir>` | Folder for the session and saved topic. Default: the per-user data folder |
+| `-d, --data-dir <dir>` | Folder for the session and paired devices. Default: the per-user data folder |
 | `--dry-run` | Print matches, send no notifications |
 | `--verbose` | Print every incoming message with chat name, id, number and delay |
-| `--qr` | Print the phone-subscribe QR (shown automatically unless `--resume`) |
 | `--check <text>` or `check <text>` | Test your rules against some text, offline, and exit |
 | `-h, --help` | Show help |
 
 The `--` after `npm start` is required, otherwise npm swallows the flags.
 
-### The ntfy topic
+### Alerts on your devices
 
-The topic is the "room" your notifications go to. On public ntfy.sh anyone who knows it can read your alerts, so treat it like a password.
+Alerts to your phones, tablets and laptops use Web Push, the same system browsers use for notifications, with the message encrypted on your computer ([RFC 8291](https://www.rfc-editor.org/rfc/rfc8291)) before it leaves. Google's, Apple's or Mozilla's push server only passes on bytes it cannot read. There is no account and no server of ours: the app is a static page, and your computer sends alerts straight to the push service. The computer running whatsgrep also shows its own native notification (`desktop`), which needs no browser or internet.
 
-| Command | Result |
-|---|---|
-| `npm start` | Generates a new random topic every run and shows the subscribe QR. The topic is saved as the "last" one |
-| `npm start -- --resume` | Reuse the topic from the last run (no new subscription needed) |
-| `npm start -- --topic my-long-secret` | Use this topic (and save it as the last one) |
+The app is one page for every device. It works out whether it is on a phone, a tablet or a laptop and words itself to match. On the device:
 
-After changing the topic, subscribe to the new one in the ntfy app and delete the old subscription. You can self-host ntfy and point `--server` at it (use `http://` only on trusted networks).
+1. Open the app (**Delivery > Add device** shows a QR code for its address, or run `whatsgrep devices pair`). Android and desktop: any browser with push, and you may install it. iPhone and iPad: Safari, then Share > Add to Home Screen, and open it from there (iOS only allows alerts for apps added to the Home Screen).
+2. Tap **Turn on alerts** and allow notifications.
+3. Under **Computers**, tap **Add computer**. The camera opens inside the app: scan the QR code in **Delivery > Add device** on your computer. The app then shows a pairing code.
+4. Paste the code under **Delivery > Add device** on that computer (or `whatsgrep devices add <code>`). The device gets a confirmation alert, and the computer shows in its list.
+
+A device can follow several computers (add each one the same way), and a computer can send to several devices. Each computer has a name (**Delivery > This computer**, or `whatsgrep devices name <text>`); the app shows it on every alert once there is more than one computer. The device's own name comes from its model and can be changed in the app.
+
+The pairing code is private: it lets whoever holds it send alerts to that device (not read yours). Paste it only into your own whatsgrep. All your computers share one code per device, so a device cannot cut off just one of them: remove the device in that computer's Delivery page, or turn alerts off in the app to cut off all. `whatsgrep devices` lists paired devices, `devices remove <id>` forgets one, `devices test` sends a test to all of them, `devices test <id>` to one.
+
+The app address defaults to `https://ankit-ksh.github.io/whatsgrep/app/`. To host your own copy of `docs/app/` (or to try changes), set it under `devices:` in the config. `npm run phone-app` serves it locally; a device only receives alerts from a page served over https (or from localhost), so for a real phone put an https tunnel in front of it.
+
+The app keeps the last 200 alerts, readable offline. On Linux a browser must be open to receive. Upgrading from an earlier version: `ntfy` in `notifications:` is ignored with a notice and its saved topic is deleted from your keychain, and `phone` is now called `devices` (the old name still works). Pair a device to get alerts again.
 
 ## Run it as a program
 
@@ -187,7 +195,7 @@ whatsgrep service install # then start it at login and restart it if it stops
 whatsgrep ui              # opens http://127.0.0.1:<port>/ with a one-time access link
 ```
 
-Everything can be changed there, with no config file editing. Switches and fields on the Notifications and Settings pages only stage a change; nothing is applied until you press the common **Save changes** bar (or **Discard**): start/stop the tracker, link WhatsApp (the login QR is shown on the page), build rules with chips instead of YAML (with a "try it" box that tests a sample message live), choose desktop and/or phone notifications, send a test notification, show the ntfy subscribe QR, set the repeat window and browser, and turn **Run at login** on or off. The **Advanced** tab has the config file as text and the log.
+Everything can be changed there, with no config file editing. Switches and fields on the Notifications and Settings pages only stage a change; nothing is applied until you press the common **Save changes** bar (or **Discard**): start/stop the tracker, link WhatsApp (the login QR is shown on the page), build rules from conditions instead of YAML (a rule starts empty; **Add condition** for sender, subject, body, attachment and so on; each can be *is exactly*, *contains* or *matches pattern*; anything you do not add is ignored; the rule reads back as a sentence, and a "try it" box tests a sample live), choose desktop and/or device notifications, send a test notification, pair devices, set the repeat window and browser, and turn **Run at login** on or off. The **Advanced** tab has the config file as text and the log.
 
 It is the same `config.yaml` underneath, so you can edit by hand whenever you like; the UI keeps your header comments and any rule you did not touch exactly as written (comments inside a rule you save from the UI are not kept). Hand edits and UI edits can be mixed: a running tracker reloads rules by itself.
 
@@ -202,21 +210,70 @@ The page only listens on `127.0.0.1`, needs the random token from the link whats
 | `status` | Running or not, connection state, matches so far |
 | `config show / path / edit / init` | View, locate, edit (in `$EDITOR`) or create the config |
 | `config get <key>` | e.g. `config get settings.repeat_window_hours` |
-| `config set <key> <value>` | e.g. `config set notifications desktop,ntfy`. Keeps your comments; refuses a value that would break the config |
+| `config set <key> <value>` | e.g. `config set notifications desktop,devices`. Keeps your comments; refuses a value that would break the config |
 | `config unset <key>` | Remove a setting |
 | `rules list / show <name> / remove <name>` | Inspect and delete rules |
 | `rules add <name> [--from a,b] [--any x,y] [--priority high]` | Add a simple rule (use the file for complex ones) |
 | `check <text>` | Which rules match this text |
-| `topic [forget]` | Show or delete the saved ntfy topic |
+| `devices [list / pair / add <code> / remove <id> / test [<id>] / name <text>]` | Phones, tablets and laptops that get alerts (`phone` still works) |
 | `ui [--port N] [--no-open]` | The settings page above |
 | `migrate [--from DIR] [--force]` | Copy an old `./config.yaml` + `./.whatsgrep` into the standard folders |
 | `service ...` | Background service, see above |
 
-A running tracker reloads rule edits by itself. `notifications` and `ntfy` changes need `service restart`.
+A running tracker applies every edit by itself, so there is nothing to restart.
 
 ### Where secrets are kept
 
-The ntfy topic works like a password on public ntfy.sh, so it is stored in your OS keychain: macOS Keychain, Windows Credential Manager, or the Secret Service on Linux (GNOME Keyring / KWallet, via `secret-tool` from `libsecret-tools`). With no usable keychain (a headless Linux box) it falls back to `state.json` readable only by you, and startup says so. The WhatsApp session itself is a browser profile and stays in the data folder, so treat that folder as a secret.
+Email passwords are stored in your OS keychain: macOS Keychain, Windows Credential Manager, or the Secret Service on Linux (GNOME Keyring / KWallet, via `secret-tool` from `libsecret-tools`). Paired devices (their push address and keys) are in `devices.json` in the data folder, readable only by you. The WhatsApp session itself is a browser profile and stays in the data folder, so treat that folder as a secret.
+
+### Tray icon (Linux and Windows)
+
+```
+whatsgrep tray            # show a status icon: green listening, amber starting, red needs login, grey stopped
+whatsgrep tray enable     # show it at every login
+whatsgrep start | stop | restart
+```
+
+Click the icon to start, stop or restart tracking, open the interface, or turn "show at login" on or off. Quitting the icon never stops tracking. On GNOME it needs the "AppIndicator and KStatusNotifierItem Support" extension (the one Flameshot and Clipboard Indicator use). There is no macOS icon yet; use `whatsgrep ui` or the commands.
+
+## Trackers and email
+
+Everything whatsgrep watches is a **tracker**: a WhatsApp account or an email account. List them under `trackers:` in the config, or manage them on the Trackers page of the interface.
+
+```
+whatsgrep tracker list
+whatsgrep tracker add whatsapp "Second phone"
+whatsgrep tracker add email "Work Gmail" --user you@gmail.com     # asks for the password
+whatsgrep tracker test "Work Gmail"         # check the login
+whatsgrep tracker disable|enable|remove <name>
+```
+
+- **Passwords** go in your OS keychain, never in the config file. On a machine without a keychain, set `WHATSGREP_EMAIL_PASSWORD_<ID>` instead (the id is the tracker name in capitals with dashes).
+- **App passwords.** Gmail, Outlook.com, Yahoo, iCloud and Fastmail block your normal password for IMAP. Create an app password in the account's security settings (the account form links the right place). Work or school Microsoft accounts usually block this and are not supported yet.
+- **Read-only.** The mailbox is opened read-only: nothing is marked as read, moved or deleted, and nothing is sent.
+- **Instant.** whatsgrep keeps an IMAP connection open (IDLE), so new mail is seen within a second or two. After downtime it catches up on unread mail from the last 24 hours.
+- **Independent.** Each tracker runs on its own. A tracker that needs a login, or loses its connection, retries or waits without touching the others.
+- **Rules choose trackers** with `on:` (`all`, or a list of tracker names). A rule with no `on:` listens to WhatsApp only, as before. `from` matches the sender (name or address) for email, and `message` matches the subject and body.
+
+Email-only conditions go under `email:` in a rule:
+
+| Key | Meaning |
+|---|---|
+| `to` | recipients (To and Cc), same `any` / `all` / `exclude` form as `from` |
+| `subject` | words in the subject only. `equals: ["Invoice 4821"]` matches the whole subject |
+| `body` | words in the text of the mail, without the subject |
+| `attachment` | `true`, `false`, or a list of file types (`pdf`) or `contains:name` |
+| `larger_than`, `smaller_than` | message size: `500KB`, `2MB`, `1GB` |
+| `not_bulk` | skip mailing lists, newsletters and auto-replies |
+| `verified` | the sender passed SPF, DKIM or DMARC at the receiving server |
+| `important` | marked high priority by the sender |
+| `during` | `{days: [mon, tue], from: "09:00", to: "18:00"}`: only alert in this window |
+
+The rule editor's "Check against my recent mail" shows which of your last 50 emails a rule would have caught, before you save it.
+
+### Trying things out safely
+
+`whatsgrep --profile test ui` runs a separate copy: its own config, sessions and keychain entries (folders named `whatsgrep-test` beside the real ones). It never touches your installed service, and `service` and `tray` are refused. Enter passwords in the interface as usual. `whatsgrep --profile test reset` removes the profile, including its keychain entries.
 
 ## Writing rules
 
@@ -224,16 +281,14 @@ The ntfy topic works like a password on public ntfy.sh, so it is stored in your 
 
 | Section | Purpose |
 |---|---|
-| `notifications` | List of where alerts go: `desktop` (native notification on this computer: `notify-send` on Linux, `osascript` on macOS, a PowerShell toast on Windows) and/or `ntfy` (phone). Default `[ntfy]`. ntfy's topic, QR code and server are only set up if `ntfy` is listed. Needs a restart to change |
-| `ntfy` | `server`: the ntfy server to publish to (default `https://ntfy.sh`). The `--server` flag overrides it |
+| `notifications` | List of where alerts go: `desktop` (native notification on this computer: `notify-send` on Linux, `osascript` on macOS, a PowerShell toast on Windows) and/or `devices` (encrypted push to your paired devices). Default `[desktop]` |
+| `devices` | `app`: the address of the app (default `https://ankit-ksh.github.io/whatsgrep/app/`) |
 | `settings` | `repeat_window_hours`: notify once per sender and text in this window (default `0` = off: every match alerts) |
 | `rules` | What to watch for. Everything below. The other two sections are optional |
 
-The topic is deliberately not in the file, so you can share your config without leaking it.
+Paired devices are deliberately not in the file, so you can share your config without leaking them.
 
 ```yaml
-ntfy:
-  server: https://ntfy.sh
 settings:
   repeat_window_hours: 0
 rules:
@@ -262,7 +317,7 @@ rules:
 | `name` | Shown in the notification title. Required |
 | `from` | Which chats. Takes `any` / `all` / `exclude`. Omit, or write `from: all`, for every chat |
 | `message` | What the text must contain. Takes `any` / `all` / `exclude`. Optional |
-| `priority` | `min`, `low`, `default`, `high`, `urgent`. Controls how loudly ntfy alerts |
+| `priority` | `min`, `low`, `default`, `high`, `urgent`. Controls how loudly alerts sound on your devices |
 
 `from` and `message` use the same three words:
 
@@ -279,19 +334,20 @@ A rule needs something to look for: `message.any` / `message.all`, or `from.any`
 **Short forms**
 - `message: [laptop, phone]` means `message: {any: [laptop, phone]}`.
 - `from: "Mess"` or `from: [Mess, "contains:market"]` means any of those chats.
-- `any` and `exclude` can be a plain list (using prefixes like `"contains:x"`) or grouped by kind (`exact`, `contains`, `re`), as in the example above. Writing `exact`, `contains` or `re` directly inside `from` or `message` is a shorthand that adds to `any`.
+- `any` and `exclude` can be a plain list (using prefixes like `"contains:x"`) or grouped by kind (`exact`, `equals`, `contains`, `re`), as in the example above. Writing `exact`, `contains` or `re` directly inside `from` or `message` is a shorthand that adds to `any`.
 - `all` can also be `{contains: [sell, laptop]}`, meaning every listed entry must match.
 
 Older configs that use `chats:` and put `any` / `all` / `none` directly on the rule still work.
 
 ### Words in `message`
 
-Each word or phrase is matched one of three ways, always case-insensitively:
+Each word or phrase is matched one of four ways, always case-insensitively:
 
 | Form | Meaning | Example |
 |---|---|---|
 | plain, or `exact:x` | Whole word or phrase. Spaces in a phrase match any whitespace | `bike` matches "my bike", not "bikes" or "motorbike" |
 | `contains:x` | Anywhere, including inside longer words | `contains:bike` matches "motorbike" and "bikes" |
+| `equals:x` | The whole text is exactly this (a whole subject, say) | `equals:Invoice 4821` matches "Invoice 4821", not "Re: Invoice 4821" |
 | `re:x` | A raw regex | `re:bikes?` matches "bike" and "bikes" |
 
 Whole-word matching means you list each form you want: `sell, selling, sold`, or use `contains:sell` to catch them all (and also "reseller"). A regex has no automatic word boundaries; add `\\b` in a quoted YAML string if you want them: `"re:\\bsell\\w*"`.
@@ -365,14 +421,14 @@ WhatsApp's "Message yourself" chat is processed too. Add your own number to `fro
 | Nothing matches | Run with `--dry-run --verbose`, send a message, and compare the printed chat name and id with `from:`. Check wording with `check "..."` |
 | Chat shows as `?` | The name lookup failed. Copy the id from the `--verbose` line into `from:` |
 | Chat id ends in `@lid` | Newer WhatsApp uses anonymous ids. whatsgrep resolves them to a number when it can, shown as `+number` in `--verbose` |
-| Matches print but the phone is silent | You are in `--dry-run`, or you are not subscribed to the exact topic printed at startup |
-| Notification arrives late | `--verbose` shows seconds between send and receipt. Large numbers mean WhatsApp delivered it late. Small numbers mean the delay is in ntfy or your phone. On Android, exclude ntfy from battery optimisation |
+| Matches print but the phone is silent | You are in `--dry-run`, `devices` is not in `notifications`, or no device is paired (`whatsgrep devices`) |
+| Notification arrives late | `--verbose` shows seconds between send and receipt. Large numbers mean WhatsApp delivered it late. Small numbers mean the delay is in the push service or your phone. On Android, do not restrict the browser's or app's background activity; on iPhone, check Focus modes |
 | `r: r` errors from whatsapp-web.js | A WhatsApp Web update broke part of the library. whatsgrep avoids the affected calls. Update with `npm update whatsapp-web.js` and open an issue if it persists |
 | Chromium fails to launch (Linux) | Install the browser libraries Puppeteer needs (for Debian/Ubuntu: `libnss3`, `libatk-bridge2.0-0`, `libgbm1`, `libasound2`) |
 
 ## Privacy and safety
 
-- Only the rule name, chat name and message text are sent to ntfy. No phone numbers or sender names.
+- Alerts to your devices carry the rule name, chat name and message text, encrypted so only your phone can read them. The push service sees only that something was sent, when, and roughly how large.
 - Everything else stays on your machine. Message text is not stored.
 - The data folder (`~/.local/share/whatsgrep`, or see the table above) holds your WhatsApp session. Anyone with it can use your WhatsApp account. Never share it. It lives outside any project, so it cannot be committed by accident.
 - Your config lives in your per-user config folder, outside any project, so your chat names and keywords are not committed by accident. Share rules by pasting them.
@@ -387,28 +443,22 @@ WhatsApp's "Message yourself" chat is processed too. Add your own number to `fro
 ## Project layout
 
 ```
-src/cli.js       arguments, WhatsApp client, message handling, config reload
-src/config.js    config file parsing (sections, defaults, validation)
-src/matcher.js   rule compilation and matching (pure, unit tested)
-src/state.js     ntfy topic generation and persistence
-src/notify.js    desktop + ntfy senders
-src/secrets.js   OS keychain access
-src/commands.js  config / rules / status commands (CLI + shell)
-src/shell.js     interactive prompt
-src/server.js    local web UI API
-src/ui/index.html the web UI page
-src/ruleform.js  rule <-> UI form conversion
-src/control.js   start/stop the tracker, read its log
-src/service.js   systemd / launchd / Task Scheduler setup
-src/browser.js   finds an installed Chrome-family browser
-src/paths.js     per-OS default folders
-scripts/build.js builds the single executable
-docs/            the project website (GitHub Pages)
-.github/         CI, release and Pages workflows
-test/            node:test unit tests
+src/cli.js            entry: reads options, runs a command or the tracker
+src/core/             config, rules and matching, notifications, status files, paths, secrets
+src/trackers/         what is watched: whatsapp.js and email/ (one file per kind, same contract)
+src/runtime/run.js    the tracker process: runs every tracker, alerts, keeps status, reloads config
+src/commands/         the command line and shell: config, rules, trackers, status
+src/system/           background service setup, starting and stopping, browser detection
+src/server/           the local interface API
+src/ui/               the interface: a React and TypeScript app, built into one page
+src/tray/             the status icon for Linux and Windows
+scripts/build.js      builds the single executable
+docs/                 the project website (GitHub Pages)
+.github/              CI, release and Pages workflows
+test/                 node:test unit tests
 ```
 
-Run the tests with `npm test`.
+Run the tests with `npm test` and the type check with `npm run typecheck`.
 
 ## Contributing
 

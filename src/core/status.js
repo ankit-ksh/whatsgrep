@@ -1,4 +1,4 @@
-import { appendFileSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 // The running tracker records its state here so `status` (from any terminal or the shell) can show it.
@@ -35,17 +35,22 @@ export function readAccount(dataDir) {
 export const clearAccount = (dataDir) => rmSync(accountFile(dataDir), { force: true });
 
 // One-way inbox: the UI drops a command, the running tracker picks it up within a second.
-const commandFile = (dataDir) => join(dataDir, 'command.json');
-export function sendCommand(dataDir, action) {
-  mkdirSync(dataDir, { recursive: true });
-  writeFileSync(commandFile(dataDir), JSON.stringify({ action, at: Date.now() }), { mode: 0o600 });
+// One small file per command, so two quick clicks never overwrite each other.
+const commandDir = (dataDir) => join(dataDir, 'commands');
+export function sendCommand(dataDir, action, extra = {}) {
+  mkdirSync(commandDir(dataDir), { recursive: true });
+  writeFileSync(join(commandDir(dataDir), `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.json`), JSON.stringify({ action, ...extra, at: Date.now() }), { mode: 0o600 });
 }
-export function takeCommand(dataDir) {
+export function takeCommands(dataDir) {
+  const out = [];
   try {
-    const c = JSON.parse(readFileSync(commandFile(dataDir), 'utf8'));
-    rmSync(commandFile(dataDir), { force: true });
-    return c;
-  } catch { return undefined; }
+    for (const f of readdirSync(commandDir(dataDir)).sort()) {
+      const file = join(commandDir(dataDir), f);
+      try { out.push(JSON.parse(readFileSync(file, 'utf8'))); } catch {}
+      rmSync(file, { force: true });
+    }
+  } catch {}
+  return out;
 }
 
 // Chat list exported by the tracker so the UI can offer a picker (also usable while it is stopped).

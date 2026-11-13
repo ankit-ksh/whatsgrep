@@ -5,13 +5,22 @@ import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parse } from 'yaml';
-import { compileRule, matches } from '../src/matcher.js';
-import { formToRule, ruleToForm } from '../src/ruleform.js';
-import { startServer } from '../src/server.js';
-import { qrSvg } from '../src/qrsvg.js';
+import { compileRule, matches } from '../src/core/rule.js';
+import { formToRule, ruleToForm } from '../src/core/ruleform.js';
+import { startServer } from '../src/server/server.js';
+import { qrSvg } from '../src/core/qrsvg.js';
 
 const SAMPLES = ['selling lunch coupon', 'anyone selling srr coupon', 'buy bf coupon', 'Rs 5000 laptop for sale', 'free pickup bike', 'giveaway', 'hello', 'selling notebooks'];
 const CHATS = ['Market Group', '919812340000', 'Neighbourhood Market', 'my classifieds archive', 'Hostel Announcements', 'Other', 'buy & sell group'];
+
+test('the editor round-trips an exact subject and a body condition, and a rule with only those stays as written', () => {
+  const raw = { name: 'boss', on: 'all', from: { any: { exact: ['ceo@boss.com'] } }, email: { subject: { any: { equals: ['Invoice 4821, due Friday'] } }, body: { exclude: { contains: ['unsubscribe'] } } } };
+  const form = ruleToForm(raw);
+  assert.deepEqual(form.email.subject.any, [{ kind: 'equals', value: 'Invoice 4821, due Friday' }]);
+  assert.deepEqual(form.email.body.exclude, [{ kind: 'contains', value: 'unsubscribe' }]);
+  assert.deepEqual(formToRule(form), raw);
+  assert.equal(formToRule(ruleToForm({ name: 'x', email: { notBulk: true, not_bulk: true } })).email?.subject, undefined); // nothing is added that was not asked for
+});
 
 test('rules survive the UI form round trip with identical behaviour', () => {
   const doc = parse(readFileSync(new URL('../config.example.yaml', import.meta.url), 'utf8'));
@@ -65,12 +74,12 @@ test('ui server: auth, host checks and saving rules', async () => {
     assert.equal(state.rules[0].name, 'a');
 
     const add = { name: 'b', priority: 'high', from: { any: [], all: [], exclude: [] }, message: { any: [{ kind: 'contains', value: 'sale' }], all: [], exclude: [] } };
-    const saved = await call('PUT', '/api/config', { rules: [state.rules[0], add], notifications: ['desktop', 'ntfy'] });
+    const saved = await call('PUT', '/api/config', { rules: [state.rules[0], add], notifications: ['desktop', 'devices'] });
     assert.equal(saved.status, 200);
     const text = readFileSync(configFile, 'utf8');
     assert.match(text, /# my header/);
     assert.match(text, /# keep me/);       // untouched rule keeps its comment
-    assert.match(text, /notifications: \[desktop, ntfy\]/);
+    assert.match(text, /notifications: \[desktop, devices\]/);
     assert.match(text, /name: b/);
 
     const dup = await call('PUT', '/api/config', { rules: [add, add] });

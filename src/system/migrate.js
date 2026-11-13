@@ -1,6 +1,6 @@
 import { cpSync, existsSync, mkdirSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
-import { readStatus } from './status.js';
+import { readStatus } from '../core/status.js';
 
 // Chromium lock files and our own runtime files are not worth copying.
 const SKIP = /^(Singleton(Lock|Cookie|Socket)|status\.json|whatsgrep\.log)$/;

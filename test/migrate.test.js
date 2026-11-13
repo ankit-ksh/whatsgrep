@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { defaultPaths } from '../src/paths.js';
-import { migrate } from '../src/migrate.js';
+import { defaultPaths } from '../src/core/paths.js';
+import { migrate } from '../src/system/migrate.js';
 
 test('default paths ignore the current directory', () => {
   const dirs = { config: '/c/whatsgrep', data: '/d/whatsgrep' };

@@ -44,17 +44,20 @@ export function backendFor(platform = process.platform, run = execFileSync) {
 }
 
 let backend = backendFor();
+// A profile keeps its secrets under its own names, so it never reads or overwrites the real ones.
+let scope = '';
+export const useScope = (profile) => { scope = profile ? `profile:${profile}:` : ''; };
 export const useBackend = (b) => { backend = b; };
 export const storeName = () => backend.name;
 
-export const getSecret = (name) => backend.get(name);
-export const deleteSecret = (name) => backend.del(name);
+export const getSecret = (name) => backend.get(scope + name);
+export const deleteSecret = (name) => backend.del(scope + name);
 
 // Returns true when the secret is now in the OS store, false when there is no usable store.
 export function setSecret(name, value) {
   try {
-    backend.set(name, value);
-    return backend.get(name) === value;
+    backend.set(scope + name, value);
+    return backend.get(scope + name) === value;
   } catch {
     return false;
   }
