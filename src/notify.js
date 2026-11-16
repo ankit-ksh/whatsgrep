@@ -36,7 +36,7 @@ async function desktop({ title, message, priority }) {
     case 'darwin':
       return void await run('osascript', ['-e', 'on run argv', '-e', 'display notification (item 2 of argv) with title (item 1 of argv)', '-e', 'end run', title, message]);
     case 'win32':
-      return void await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', WIN_TOAST], { env: { ...process.env, WG_TITLE: title, WG_BODY: message } });
+      return void await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', WIN_TOAST], { windowsHide: true, env: { ...process.env, WG_TITLE: title, WG_BODY: message } });
     default:
       throw new Error(`desktop notifications are not supported on ${process.platform}`);
   }

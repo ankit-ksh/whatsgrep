@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.2]
+
+### Fixed
+- **Windows: WhatsApp would not reconnect after the first login.** Every start with a saved session failed with "Execution context was destroyed" because WhatsApp Web reloads the page while it is being set up. whatsapp-web.js 1.34.8 waits through the reload.
+- **Windows: double-clicking the .exe** opened a console that closed at once. It now opens the interface.
+- **Windows: no more PowerShell windows flashing** when reading the keychain or showing a notification.
+
 ## [0.2.1]
 
 ### Changed
