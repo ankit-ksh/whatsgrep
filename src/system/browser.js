@@ -40,7 +40,7 @@ export function releaseProfile(userDataDir, { platform = process.platform, run =
     let pids;
     if (platform === 'win32') {
       const ps = `Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*--user-data-dir=' + $env:WG_DIR + '*' } | ForEach-Object { $_.ProcessId }`;
-      pids = run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { encoding: 'utf8', env: { ...process.env, WG_DIR: userDataDir } }).split(/\s+/).filter(Boolean);
+      pids = run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { encoding: 'utf8', windowsHide: true, env: { ...process.env, WG_DIR: userDataDir } }).split(/\s+/).filter(Boolean);
     } else {
       pids = run('ps', ['-eo', 'pid=,args='], { encoding: 'utf8' }).split('\n')
         .filter((l) => l.includes('--user-data-dir=' + userDataDir))

@@ -14,7 +14,7 @@ $v = New-Object Windows.Security.Credentials.PasswordVault
 // Each backend: get(name) -> string | undefined, set(name, value), del(name). They throw if the
 // store is unavailable (e.g. a Linux server with no Secret Service).
 export function backendFor(platform = process.platform, run = execFileSync) {
-  const exec = (file, args, opts = {}) => run(file, args, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], ...opts });
+  const exec = (file, args, opts = {}) => run(file, args, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, ...opts });
 
   if (platform === 'darwin') {
     return {

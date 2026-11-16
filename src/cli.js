@@ -2,6 +2,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
+import { isPackaged } from './core/sea.js';
 import { runTracker } from './runtime/run.js';
 import { defaultPaths, legacyFiles } from './core/paths.js';
 import { useScope } from './core/secrets.js';
@@ -57,6 +58,9 @@ try {
   process.exit(1);
 }
 const positionals = argv.slice(cmdAt);
+// Double-clicking the Windows .exe starts it with no arguments in a console that closes as soon as
+// it exits, so a missing config error flashes by unread. Open the interface instead.
+if (!argv.length && process.platform === 'win32' && isPackaged()) positionals.push('ui');
 
 if (opt.version) { console.log(`whatsgrep ${VERSION}`); process.exit(0); }
 if (opt.help) { console.log(HELP); process.exit(0); }

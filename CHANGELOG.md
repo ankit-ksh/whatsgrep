@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- **Windows: WhatsApp would not reconnect after the first login.** Every start with a saved session failed with "Execution context was destroyed" because WhatsApp Web reloads the page while it is being set up. whatsapp-web.js 1.34.8 waits through the reload.
+- **Windows: double-clicking the .exe** opened a console that closed at once. It now opens the interface.
+- **Windows: no more PowerShell windows flashing** when reading the keychain, showing a notification or stopping a leftover browser.
+
 ### Changed
 - **Nothing asks you to restart any more.** Notifications, rules, the repeat window and trackers apply as soon as you save. Changing the browser setting restarts only the WhatsApp trackers.
 - **Alerts to your devices are now encrypted Web Push, replacing ntfy.** Alerts are encrypted on your computer (RFC 8291) and sent straight to Google's, Apple's or Mozilla's push service, which only sees unreadable bytes. No account, no topic, no server of ours. Works on Android, iPhone (iOS 16.4+, added to the Home Screen), tablets and laptops. The computer running whatsgrep keeps its own native notification. The setting is `devices` (it was briefly `phone`, which still works).
